@@ -1,0 +1,48 @@
+[CmdletBinding()]
+param(
+    [string]$EngineRoot,
+    [switch]$RunAutomation
+)
+
+$ErrorActionPreference = 'Stop'
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
+$RequiredSources = @(
+    'TwoFronts.uproject',
+    'Source/TwoFronts/TwoFronts.Build.cs',
+    'Source/TwoFronts/Public/TFUnit.h',
+    'Source/TwoFronts/Public/TFFactory.h',
+    'Source/TwoFronts/Private/TFPlayerController.cpp',
+    'Source/TwoFronts/Private/Tests/TwoFrontsAutomationTests.cpp'
+)
+
+foreach ($RelativePath in $RequiredSources) {
+    $Path = Join-Path $ProjectRoot $RelativePath
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Erforderliche Quelldatei fehlt: $RelativePath" }
+}
+
+$UnitSource = Get-Content -Raw (Join-Path $ProjectRoot 'Source/TwoFronts/Private/TFGameMode.cpp')
+foreach ($UnitId in 'HumanScout','HumanRifleUnit','HumanBattleTank','HumanRepairRig','SynthProbe','SynthCombatDrone','SynthWalker','SynthReconstructor') {
+    if ($UnitSource -notmatch $UnitId) { throw "Einheitendefinition fehlt im Prototyp-Katalog: $UnitId" }
+}
+foreach ($RequiredRPC in 'ServerMoveUnits','ServerAttackUnits','ServerRepairUnits','ServerEnqueueFactory') {
+    if ($UnitSource + (Get-Content -Raw (Join-Path $ProjectRoot 'Source/TwoFronts/Private/TFPlayerController.cpp')) -notmatch $RequiredRPC) { throw "Server-Befehlsnaht fehlt: $RequiredRPC" }
+}
+Write-Host 'STATIC CHECK PASSED: Source structure and all eight gameplay definitions are present.' -ForegroundColor Green
+Write-Host 'This is not a compilation or gameplay result.' -ForegroundColor Yellow
+
+if (-not $RunAutomation) { return }
+if ([string]::IsNullOrWhiteSpace($EngineRoot)) { throw '-RunAutomation requires -EngineRoot.' }
+$BuildScript = Join-Path $EngineRoot 'Engine/Build/BatchFiles/Build.bat'
+$EditorCmd = Join-Path $EngineRoot 'Engine/Binaries/Win64/UnrealEditor-Cmd.exe'
+if (-not (Test-Path -LiteralPath $BuildScript)) { throw "UE build script not found: $BuildScript" }
+if (-not (Test-Path -LiteralPath $EditorCmd)) { throw "UnrealEditor-Cmd not found: $EditorCmd" }
+
+Push-Location $ProjectRoot
+try {
+    & $BuildScript TwoFrontsEditor Win64 Development (Join-Path $ProjectRoot 'TwoFronts.uproject') -WaitMutex
+    if ($LASTEXITCODE -ne 0) { throw "UE C++ build failed with exit code $LASTEXITCODE" }
+    & $EditorCmd (Join-Path $ProjectRoot 'TwoFronts.uproject') -unattended -nop4 -NullRHI '-ExecCmds=Automation RunTests TwoFronts.Gameplay; Quit'
+    if ($LASTEXITCODE -ne 0) { throw "UE automation command failed with exit code $LASTEXITCODE" }
+    Write-Host 'ENGINE BUILD AND AUTOMATION COMMAND PASSED. Inspect Saved/Logs for test results.' -ForegroundColor Green
+}
+finally { Pop-Location }

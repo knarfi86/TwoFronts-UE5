@@ -1,0 +1,24 @@
+# Unreal Engine generated data
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.opensdf
+*.sdf
+*.pdb
+*.obj
+*.dll
+*.exe
+
+# Local IDE and OS state
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+Desktop.ini

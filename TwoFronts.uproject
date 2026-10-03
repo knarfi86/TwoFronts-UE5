@@ -1,0 +1,12 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "",
+  "Category": "Games",
+  "Description": "Two Fronts UE5 realtime-strategy prototype.",
+  "Modules": [
+    { "Name": "TwoFronts", "Type": "Runtime", "LoadingPhase": "Default" }
+  ],
+  "Plugins": [
+    { "Name": "EnhancedInput", "Enabled": true }
+  ]
+}
