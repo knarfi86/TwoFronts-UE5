@@ -1,0 +1,33 @@
+name: Trello-Status synchronisieren
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+
+jobs:
+  sync-trello-card:
+    name: Trello-Status synchronisieren
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 5
+
+      - name: Synchronisierungslogik mit Testdaten prüfen
+        run: python -m unittest discover -s Tests/TrelloSync -p "test_*.py" -v
+
+      - name: Bestehende Trello-Karte aktualisieren
+        env:
+          TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
+          TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
+          TRELLO_CARD_ID: ${{ vars.TRELLO_CARD_ID }}
+          TRELLO_NEXT_STEP: ${{ vars.TRELLO_NEXT_STEP }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python .github/scripts/sync_trello_status.py
