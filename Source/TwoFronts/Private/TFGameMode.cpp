@@ -1,6 +1,7 @@
 #include "TFGameMode.h"
 #include "TFFactionDefinition.h"
 #include "TFUnitDefinition.h"
+#include "TFWeaponDefinition.h"
 #include "TFUnit.h"
 #include "TFFactory.h"
 #include "TFPlayerController.h"
@@ -29,9 +30,17 @@ UTFUnitDefinition* ATFGameMode::MakeUnit(UTFFactionDefinition* FactionDefinition
     UTFUnitDefinition* Def = NewObject<UTFUnitDefinition>(FactionDefinition, Id);
     Def->UnitId = Id; Def->DisplayName = Name; Def->Faction = FactionDefinition->Faction; Def->Role = UnitRole;
     Def->MaxHealth = HP; Def->MoveSpeed = Speed; Def->SightRange = (UnitRole == ETUnitRole::Scout ? 1800.f : 1200.f);
-    Def->Combat.Damage = Damage; Def->Combat.Range = Range; Def->Combat.Cooldown = Cooldown; Def->RepairPerSecond = Repair; Def->ProductionSeconds = BuildTime;
+    Def->Combat.Damage = Damage; Def->Combat.Range = Range; Def->Combat.Cooldown = Cooldown; Def->AcquisitionRange = FMath::Max(Range, Def->SightRange); Def->Armor = UnitRole == ETUnitRole::Heavy ? 8.f : (UnitRole == ETUnitRole::Combat ? 2.f : 0.f); Def->TargetCategory = UnitRole == ETUnitRole::Heavy ? ETFCombatTargetCategory::Armored : ETFCombatTargetCategory::Light; Def->RepairPerSecond = Repair; Def->ProductionSeconds = BuildTime;
     Def->PlaceholderMesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(MeshPath)); FactionDefinition->Units.Add(Def);
     return Def;
+}
+UTFWeaponDefinition* ATFGameMode::MakeWeapon(FName Id, const FText& Name, float Damage, float Range, float Reload, ETFWeaponDelivery Delivery, float ProjectileSpeed)
+{
+    UTFWeaponDefinition* Weapon = NewObject<UTFWeaponDefinition>(this, Id);
+    Weapon->WeaponId = Id; Weapon->DisplayName = Name; Weapon->Damage = Damage; Weapon->MaximumRange = Range; Weapon->ReloadSeconds = Reload; Weapon->Delivery = Delivery; Weapon->ProjectileSpeed = ProjectileSpeed;
+    Weapon->ValidTargetCategories = { ETFCombatTargetCategory::Light, ETFCombatTargetCategory::Armored };
+    RuntimeWeapons.Add(Weapon);
+    return Weapon;
 }
 void ATFGameMode::CreateRuntimeDefinitions()
 {
@@ -48,6 +57,12 @@ void ATFGameMode::CreateRuntimeDefinitions()
     MakeUnit(Synth, TEXT("SynthCombatDrone"), FText::FromString(TEXT("Combat Drone")), ETUnitRole::Combat, 130, 580, 14, 700, .75f, 0, 5.5f, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
     MakeUnit(Synth, TEXT("SynthWalker"), FText::FromString(TEXT("Walker")), ETUnitRole::Heavy, 360, 360, 35, 850, 1.25f, 0, 10, TEXT("/Engine/BasicShapes/Cube.Cube"));
     MakeUnit(Synth, TEXT("SynthReconstructor"), FText::FromString(TEXT("Reconstructor")), ETUnitRole::Support, 160, 450, 0, 0, 1, 35, 7, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+    Humans->Units[0]->Weapons.Add(MakeWeapon(TEXT("HumanScoutPulse"), FText::FromString(TEXT("Scout Pulse")), 8.f, 450.f, .7f, ETFWeaponDelivery::Direct));
+    Humans->Units[1]->Weapons.Add(MakeWeapon(TEXT("HumanRifle"), FText::FromString(TEXT("Rifle")), 16.f, 650.f, 1.f, ETFWeaponDelivery::Direct));
+    Humans->Units[2]->Weapons.Add(MakeWeapon(TEXT("HumanTankShell"), FText::FromString(TEXT("Tank Shell")), 42.f, 800.f, 1.6f, ETFWeaponDelivery::Projectile, 1250.f));
+    Synth->Units[0]->Weapons.Add(MakeWeapon(TEXT("SynthProbePulse"), FText::FromString(TEXT("Probe Pulse")), 6.f, 500.f, .55f, ETFWeaponDelivery::Direct));
+    Synth->Units[1]->Weapons.Add(MakeWeapon(TEXT("SynthDroneBeam"), FText::FromString(TEXT("Drone Beam")), 14.f, 700.f, .75f, ETFWeaponDelivery::Direct));
+    Synth->Units[2]->Weapons.Add(MakeWeapon(TEXT("SynthWalkerBolt"), FText::FromString(TEXT("Walker Bolt")), 35.f, 850.f, 1.25f, ETFWeaponDelivery::Projectile, 1400.f));
 }
 UTFFactionDefinition* ATFGameMode::GetFactionDefinition(ETFactionId Faction) const { return Faction == ETFactionId::Humans ? Humans : (Faction == ETFactionId::Synth ? Synth : nullptr); }
 void ATFGameMode::BeginPlay() { Super::BeginPlay(); CreateRuntimeDefinitions(); if (HasAuthority()) BuildTestArena(); }

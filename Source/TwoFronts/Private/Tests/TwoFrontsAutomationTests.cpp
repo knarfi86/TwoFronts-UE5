@@ -5,6 +5,8 @@
 #include "TFUnitDefinition.h"
 #include "TFHealthComponent.h"
 #include "TFFormationPlanner.h"
+#include "TFDamageSystem.h"
+#include "TFWeaponDefinition.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTFPrototypeCatalogTest, "TwoFronts.Gameplay.PrototypeCatalog", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FTFPrototypeCatalogTest::RunTest(const FString&)
@@ -91,6 +93,23 @@ bool FTFFormationPlannerTest::RunTest(const FString&)
     const FTFFormationPlan DrawnLinePlan = FTFFormationPlanner::BuildPlan(DrawnLineUnits, Request);
     TestTrue(TEXT("A short drawn line automatically creates multiple rows"), DrawnLinePlan.RowsUsed > 1);
     TestTrue(TEXT("A manual row count expands a short drawn front instead of overlapping targets"), FTFFormationPlanner::BuildPlan(DrawnLineUnits, FTFFormationPlanRequest{ETFFormation::Line, 2, Request.Anchor, Request.Forward, Request.Right, 300.f}).FrontWidthUsed >= 9.f * DrawnLinePlan.MinimumSpacing);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTFCombatDataTest, "TwoFronts.Gameplay.CombatData", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FTFCombatDataTest::RunTest(const FString&)
+{
+    ATFGameMode* Mode = GetMutableDefault<ATFGameMode>();
+    Mode->CreateRuntimeDefinitions();
+    const UTFFactionDefinition* Humans = Mode->GetFactionDefinition(ETFactionId::Humans);
+    const UTFFactionDefinition* Synth = Mode->GetFactionDefinition(ETFactionId::Synth);
+    TestEqual(TEXT("Armor reduces damage"), FTFDamageSystem::CalculateDamage(20.f, 7.f), 13.f);
+    TestEqual(TEXT("Armor cannot erase a positive hit"), FTFDamageSystem::CalculateDamage(4.f, 20.f), 1.f);
+    TestEqual(TEXT("Non-positive damage stays zero"), FTFDamageSystem::CalculateDamage(0.f, 20.f), 0.f);
+    TestTrue(TEXT("Rifle uses a direct weapon definition"), Humans->Units[1]->Weapons.Num() == 1 && Humans->Units[1]->Weapons[0]->Delivery == ETFWeaponDelivery::Direct);
+    TestTrue(TEXT("Tank uses a projectile weapon definition"), Humans->Units[2]->Weapons.Num() == 1 && Humans->Units[2]->Weapons[0]->Delivery == ETFWeaponDelivery::Projectile);
+    TestTrue(TEXT("Walker also uses a projectile weapon definition"), Synth->Units[2]->Weapons.Num() == 1 && Synth->Units[2]->Weapons[0]->Delivery == ETFWeaponDelivery::Projectile);
+    TestTrue(TEXT("Weapons declare valid target categories"), Humans->Units[1]->Weapons[0]->ValidTargetCategories.Contains(ETFCombatTargetCategory::Armored));
     return true;
 }
 #endif

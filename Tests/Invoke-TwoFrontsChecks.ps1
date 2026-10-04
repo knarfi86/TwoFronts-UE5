@@ -11,6 +11,8 @@ $RequiredSources = @(
     'Source/TwoFronts/TwoFronts.Build.cs',
     'Source/TwoFronts/Public/TFUnit.h',
     'Source/TwoFronts/Public/TFFormationPlanner.h',
+    'Source/TwoFronts/Public/TFWeaponDefinition.h',
+    'Source/TwoFronts/Public/TFCombatComponent.h',
     'Source/TwoFronts/Private/TFFormationPlanner.cpp',
     'Source/TwoFronts/Public/TFFactory.h',
     'Source/TwoFronts/Private/TFPlayerController.cpp',

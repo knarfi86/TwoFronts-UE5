@@ -6,6 +6,7 @@
 class UTFHealthComponent;
 class UTFUnitDefinition;
 class UStaticMeshComponent;
+class UTFCombatComponent;
 
 UCLASS(Blueprintable)
 class TWOFRONTS_API ATFUnit : public ACharacter
@@ -18,7 +19,9 @@ public:
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UStaticMeshComponent> Visual;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UStaticMeshComponent> SelectionMarker;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UStaticMeshComponent> HealthBar;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UTFHealthComponent> Health;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UTFCombatComponent> CombatController;
     UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly) ETFactionId Faction;
     UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UTFUnitDefinition> Definition;
     UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly) TObjectPtr<ATFUnit> CombatTarget;
@@ -32,6 +35,8 @@ public:
     UFUNCTION(BlueprintCallable) void RepairTarget(ATFUnit* Target, float DeltaSeconds);
     UFUNCTION(BlueprintCallable) void SetRepairTarget(ATFUnit* Target);
     UFUNCTION(BlueprintCallable) void SetFormationFacing(FVector Direction);
+    UFUNCTION(BlueprintCallable) float GetArmor() const;
+    UFUNCTION() void UpdateHealthVisual(float CurrentHealth, float MaximumHealth);
 protected:
     float LastAttackTime = -100.f;
     void AutoAttack(float DeltaSeconds);

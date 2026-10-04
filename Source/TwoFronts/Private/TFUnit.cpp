@@ -2,6 +2,8 @@
 #include "TFHealthComponent.h"
 #include "AIController.h"
 #include "TFUnitDefinition.h"
+#include "TFDamageSystem.h"
+#include "TFCombatComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "AIController.h"
@@ -21,6 +23,14 @@ ATFUnit::ATFUnit()
     SelectionMarker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     SelectionMarker->SetVisibility(false);
     Health = CreateDefaultSubobject<UTFHealthComponent>(TEXT("Health"));
+    HealthBar = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HealthBar"));
+    HealthBar->SetupAttachment(GetRootComponent());
+    HealthBar->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")));
+    HealthBar->SetRelativeLocation(FVector(0.f, 0.f, 130.f));
+    HealthBar->SetRelativeScale3D(FVector(1.2f, .08f, .08f));
+    HealthBar->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Health->OnHealthChanged.AddDynamic(this, &ATFUnit::UpdateHealthVisual);
+    CombatController = CreateDefaultSubobject<UTFCombatComponent>(TEXT("CombatController"));
     GetCharacterMovement()->bOrientRotationToMovement = true;
     GetCharacterMovement()->RotationRate = FRotator(0.f, 720.f, 0.f);
     AIControllerClass = AAIController::StaticClass();
@@ -44,9 +54,17 @@ void ATFUnit::ApplyDefinition(UTFUnitDefinition* InDefinition)
 void ATFUnit::SetSelectedVisual(bool bSelected) { if (SelectionMarker) SelectionMarker->SetVisibility(bSelected, true); }
 float ATFUnit::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
-    const float Applied = Health ? Health->ApplyDamage(DamageAmount) : 0.f;
+    FTFDamageRequest Request;
+    Request.RawDamage = DamageAmount;
+    Request.SourceActor = DamageCauser;
+    const float Applied = FTFDamageSystem::ApplyDamage(this, Request);
     Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
     return Applied;
+}
+float ATFUnit::GetArmor() const { return Definition ? Definition->Armor : 0.f; }
+void ATFUnit::UpdateHealthVisual(float CurrentHealth, float MaximumHealth)
+{
+    if (HealthBar) HealthBar->SetRelativeScale3D(FVector(1.2f * FMath::Clamp(MaximumHealth > 0.f ? CurrentHealth / MaximumHealth : 0.f, .02f, 1.f), .08f, .08f));
 }
 bool ATFUnit::CanReceiveOrdersFrom(ETFactionId PlayerFaction) const { return Health->IsAlive() && Faction == PlayerFaction; }
 void ATFUnit::SetAttackTarget(ATFUnit* Target) { if (HasAuthority() && Target && Target != this && Target->Faction != Faction) { CombatTarget = Target; CurrentRepairTarget = nullptr; } }
@@ -71,28 +89,6 @@ void ATFUnit::SetFormationFacing(FVector Direction)
 }
 void ATFUnit::AutoAttack(float DeltaSeconds)
 {
-    if (!HasAuthority() || !Definition) return;
-    if (!CombatTarget || !CombatTarget->Health->IsAlive())
-    {
-        CombatTarget = nullptr;
-        TArray<AActor*> Candidates; UGameplayStatics::GetAllActorsOfClass(this, ATFUnit::StaticClass(), Candidates);
-        float BestDistance = Definition->SightRange;
-        for (AActor* Candidate : Candidates)
-        {
-            ATFUnit* Other = Cast<ATFUnit>(Candidate);
-            const float Distance = Other ? FVector::Dist2D(GetActorLocation(), Other->GetActorLocation()) : TNumericLimits<float>::Max();
-            if (Other && Other->Faction != Faction && Other->Health->IsAlive() && Distance < BestDistance) { BestDistance = Distance; CombatTarget = Other; }
-        }
-    }
-    if (!CombatTarget) return;
-    const float Distance = FVector::Dist2D(GetActorLocation(), CombatTarget->GetActorLocation());
-    if (Distance > Definition->Combat.Range) return;
-    const float Now = GetWorld()->GetTimeSeconds();
-    if (Now - LastAttackTime >= Definition->Combat.Cooldown && Definition->Combat.Damage > 0.f)
-    {
-        LastAttackTime = Now;
-        UGameplayStatics::ApplyDamage(CombatTarget, Definition->Combat.Damage, GetController(), this, nullptr);
-    }
 }
 void ATFUnit::Tick(float DeltaSeconds) { Super::Tick(DeltaSeconds); AutoAttack(DeltaSeconds); if (CurrentRepairTarget) RepairTarget(CurrentRepairTarget, DeltaSeconds); }
 void ATFUnit::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

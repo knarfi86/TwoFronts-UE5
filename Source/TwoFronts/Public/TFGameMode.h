@@ -2,9 +2,11 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "TFTypes.h"
+#include "TFCombatTypes.h"
 #include "TFGameMode.generated.h"
 class UTFFactionDefinition;
 class UTFUnitDefinition;
+class UTFWeaponDefinition;
 
 UCLASS()
 class TWOFRONTS_API ATFGameMode : public AGameModeBase
@@ -23,5 +25,7 @@ private:
     UPROPERTY(Transient) TObjectPtr<UTFFactionDefinition> Humans;
     UPROPERTY(Transient) TObjectPtr<UTFFactionDefinition> Synth;
     UTFUnitDefinition* MakeUnit(UTFFactionDefinition* FactionDefinition, FName Id, const FText& Name, ETUnitRole UnitRole, float HP, float Speed, float Damage, float Range, float Cooldown, float Repair, float BuildTime, const TCHAR* MeshPath);
+    UTFWeaponDefinition* MakeWeapon(FName Id, const FText& Name, float Damage, float Range, float Reload, ETFWeaponDelivery Delivery, float ProjectileSpeed = 1800.f);
     void BuildTestArena();
+    UPROPERTY(Transient) TArray<TObjectPtr<UTFWeaponDefinition>> RuntimeWeapons;
 };
