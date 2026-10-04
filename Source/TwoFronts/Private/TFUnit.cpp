@@ -1,5 +1,6 @@
 #include "TFUnit.h"
 #include "TFHealthComponent.h"
+#include "AIController.h"
 #include "TFUnitDefinition.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -22,6 +23,7 @@ ATFUnit::ATFUnit()
     Health = CreateDefaultSubobject<UTFHealthComponent>(TEXT("Health"));
     GetCharacterMovement()->bOrientRotationToMovement = true;
     GetCharacterMovement()->RotationRate = FRotator(0.f, 720.f, 0.f);
+    AIControllerClass = AAIController::StaticClass();
     AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 }
 void ATFUnit::ApplyDefinition(UTFUnitDefinition* InDefinition)

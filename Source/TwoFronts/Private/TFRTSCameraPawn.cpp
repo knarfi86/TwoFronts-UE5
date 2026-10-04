@@ -6,8 +6,15 @@
 ATFRTSCameraPawn::ATFRTSCameraPawn()
 {
     SetRootComponent(CreateDefaultSubobject<USceneComponent>(TEXT("Root")));
-    SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm")); SpringArm->SetupAttachment(GetRootComponent()); SpringArm->TargetArmLength = 2600.f; SpringArm->SetRelativeRotation(FRotator(-60.f, 0.f, 0.f)); SpringArm->bDoCollisionTest = false;
+    SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm")); SpringArm->SetupAttachment(GetRootComponent()); SpringArm->TargetArmLength = 7500.f; SpringArm->SetRelativeRotation(FRotator(-60.f, 0.f, 0.f)); SpringArm->bDoCollisionTest = false;
     Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera")); Camera->SetupAttachment(SpringArm);
+    Camera->PostProcessBlendWeight = 1.f;
+    Camera->PostProcessSettings.bOverride_AutoExposureMethod = true;
+    Camera->PostProcessSettings.AutoExposureMethod = AEM_Manual;
+    Camera->PostProcessSettings.bOverride_AutoExposureBias = true;
+    Camera->PostProcessSettings.AutoExposureBias = 0.f;
+    Camera->PostProcessSettings.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
+    Camera->PostProcessSettings.AutoExposureApplyPhysicalCameraExposure = false;
     CreateDefaultSubobject<UFloatingPawnMovement>(TEXT("Movement"))->MaxSpeed = 2200.f;
 }
 void ATFRTSCameraPawn::SetupPlayerInputComponent(UInputComponent* Input) { Super::SetupPlayerInputComponent(Input); Input->BindAxis(TEXT("RTS_MoveForward"), this, &ATFRTSCameraPawn::MoveForward); Input->BindAxis(TEXT("RTS_MoveRight"), this, &ATFRTSCameraPawn::MoveRight); Input->BindAxis(TEXT("RTS_Zoom"), this, &ATFRTSCameraPawn::Zoom); Input->BindAxis(TEXT("RTS_Rotate"), this, &ATFRTSCameraPawn::Rotate); }

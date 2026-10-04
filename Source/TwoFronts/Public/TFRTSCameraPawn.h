@@ -13,7 +13,7 @@ public:
     virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
     void MoveForward(float Value); void MoveRight(float Value); void Zoom(float Value); void Rotate(float Value);
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float MinZoom = 900.f;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite) float MaxZoom = 4500.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float MaxZoom = 10000.f;
 private:
     UPROPERTY(VisibleAnywhere) TObjectPtr<USpringArmComponent> SpringArm;
     UPROPERTY(VisibleAnywhere) TObjectPtr<UCameraComponent> Camera;

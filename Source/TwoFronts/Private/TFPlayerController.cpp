@@ -5,6 +5,10 @@
 #include "AIController.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "NavigationSystem.h"
+#include "Navigation/PathFollowingComponent.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogTwoFrontsRTS, Log, All);
 
 ATFPlayerController::ATFPlayerController() { bShowMouseCursor = true; bEnableClickEvents = true; bEnableMouseOverEvents = true; }
 void ATFPlayerController::BeginPlay() { Super::BeginPlay(); ServerSetFaction(RequestedFaction); }
@@ -17,7 +21,11 @@ void ATFPlayerController::SetupInputComponent()
     InputComponent->BindAction(TEXT("RTS_Humans"), IE_Pressed, this, &ATFPlayerController::ChooseHumans);
     InputComponent->BindAction(TEXT("RTS_Synth"), IE_Pressed, this, &ATFPlayerController::ChooseSynth);
 }
-ETFactionId ATFPlayerController::GetPlayerFaction() const { return GetPlayerState<ATFPlayerState>() ? GetPlayerState<ATFPlayerState>()->ChosenFaction : RequestedFaction; }
+ETFactionId ATFPlayerController::GetPlayerFaction() const
+{
+    if (!HasAuthority()) return RequestedFaction;
+    return GetPlayerState<ATFPlayerState>() ? GetPlayerState<ATFPlayerState>()->ChosenFaction : RequestedFaction;
+}
 void ATFPlayerController::ChooseHumans() { RequestedFaction = ETFactionId::Humans; ServerSetFaction(RequestedFaction); ClearSelection(); }
 void ATFPlayerController::ChooseSynth() { RequestedFaction = ETFactionId::Synth; ServerSetFaction(RequestedFaction); ClearSelection(); }
 void ATFPlayerController::ServerSetFaction_Implementation(ETFactionId NewFaction) { if (ATFPlayerState* State = GetPlayerState<ATFPlayerState>()) State->ChosenFaction = (NewFaction == ETFactionId::Synth ? ETFactionId::Synth : ETFactionId::Humans); }
@@ -61,7 +69,13 @@ void ATFPlayerController::EndSelection()
 void ATFPlayerController::IssueCommand()
 {
     if (SelectedUnits.IsEmpty()) return;
-    FHitResult Hit; if (!GetWorldHit(Hit)) return;
+    UE_LOG(LogTwoFrontsRTS, Log, TEXT("RTS command input received for %d selected unit(s)."), SelectedUnits.Num());
+    FHitResult Hit;
+    if (!GetWorldHit(Hit))
+    {
+        UE_LOG(LogTwoFrontsRTS, Warning, TEXT("RTS move command rejected because the cursor did not hit a blocking world surface."));
+        return;
+    }
     if (ATFUnit* HitUnit = Cast<ATFUnit>(Hit.GetActor()))
     {
         if (HitUnit->Faction != GetPlayerFaction()) ServerAttackUnits(SelectedUnits, HitUnit);
@@ -71,7 +85,48 @@ void ATFPlayerController::IssueCommand()
 }
 void ATFPlayerController::ServerMoveUnits_Implementation(const TArray<ATFUnit*>& Units, FVector Destination)
 {
-    for (ATFUnit* Unit : Units) if (IsValid(Unit) && Unit->CanReceiveOrdersFrom(GetPlayerFaction())) { Unit->ClearCombatTarget(); Unit->SetRepairTarget(nullptr); if (AAIController* AI = Cast<AAIController>(Unit->GetController())) AI->MoveToLocation(Destination, 60.f); }
+    UNavigationSystemV1* NavigationSystem = UNavigationSystemV1::GetCurrent(GetWorld());
+    FNavLocation NavigableDestination;
+    if (!NavigationSystem || !NavigationSystem->ProjectPointToNavigation(Destination, NavigableDestination, FVector(250.f, 250.f, 500.f)))
+    {
+        UE_LOG(LogTwoFrontsRTS, Warning, TEXT("RTS move command rejected because no reachable NavMesh point exists at %s."), *Destination.ToCompactString());
+        return;
+    }
+
+    const ETFactionId PlayerFaction = GetPlayerFaction();
+    int32 IssuedMoveCount = 0;
+    for (ATFUnit* Unit : Units)
+    {
+        if (!IsValid(Unit) || !Unit->CanReceiveOrdersFrom(PlayerFaction)) continue;
+
+        Unit->ClearCombatTarget();
+        Unit->SetRepairTarget(nullptr);
+        if (!Unit->GetController()) Unit->SpawnDefaultController();
+
+        AAIController* AIController = Cast<AAIController>(Unit->GetController());
+        if (!AIController)
+        {
+            UE_LOG(LogTwoFrontsRTS, Warning, TEXT("RTS move command could not create an AI controller for %s."), *Unit->GetName());
+            continue;
+        }
+
+        const EPathFollowingRequestResult::Type MoveResult = AIController->MoveToLocation(NavigableDestination.Location, 60.f);
+        if (MoveResult == EPathFollowingRequestResult::Failed)
+        {
+            UE_LOG(LogTwoFrontsRTS, Warning, TEXT("RTS move command failed path submission for %s."), *Unit->GetName());
+            continue;
+        }
+
+        ++IssuedMoveCount;
+    }
+
+    if (IssuedMoveCount == 0)
+    {
+        UE_LOG(LogTwoFrontsRTS, Warning, TEXT("RTS move command did not apply to an owned, living unit."));
+        return;
+    }
+
+    UE_LOG(LogTwoFrontsRTS, Log, TEXT("RTS move command accepted for %d unit(s) at %s."), IssuedMoveCount, *NavigableDestination.Location.ToCompactString());
 }
 void ATFPlayerController::ServerAttackUnits_Implementation(const TArray<ATFUnit*>& Units, ATFUnit* Target)
 {

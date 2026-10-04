@@ -7,7 +7,13 @@
 #include "TFPlayerState.h"
 #include "TFRTSCameraPawn.h"
 #include "TFHUD.h"
+#include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/LightComponent.h"
+#include "Components/SkyLightComponent.h"
+#include "Engine/DirectionalLight.h"
+#include "Engine/SkyLight.h"
+#include "Engine/TextureCube.h"
 #include "NavigationSystem.h"
 #include "NavMesh/NavMeshBoundsVolume.h"
 
@@ -48,20 +54,59 @@ void ATFGameMode::BeginPlay() { Super::BeginPlay(); CreateRuntimeDefinitions(); 
 void ATFGameMode::PostLogin(APlayerController* NewPlayer)
 {
     Super::PostLogin(NewPlayer);
+    const FRotator InitialCameraRotation(0.f, -90.f, 0.f);
+    if (ATFRTSCameraPawn* CameraPawn = Cast<ATFRTSCameraPawn>(NewPlayer ? NewPlayer->GetPawn() : nullptr))
+    {
+        CameraPawn->SetActorRotation(InitialCameraRotation);
+    }
     if (NewPlayer && !NewPlayer->GetPawn())
     {
-        if (APawn* CameraPawn = GetWorld()->SpawnActor<APawn>(DefaultPawnClass, FVector(0, 0, 2200), FRotator::ZeroRotator)) NewPlayer->Possess(CameraPawn);
+        if (APawn* CameraPawn = GetWorld()->SpawnActor<APawn>(DefaultPawnClass, FVector(0, 0, 2200), InitialCameraRotation)) NewPlayer->Possess(CameraPawn);
     }
 }
 void ATFGameMode::BuildTestArena()
 {
     // A deliberately temporary arena: all geometry and navigation are spawned at runtime, so the project has no final-map dependency.
+    if (ADirectionalLight* DirectionalLight = GetWorld()->SpawnActor<ADirectionalLight>(FVector::ZeroVector, FRotator(-50.f, -35.f, 0.f)))
+    {
+        ULightComponent* LightComponent = DirectionalLight->GetLightComponent();
+        LightComponent->SetMobility(EComponentMobility::Movable);
+        LightComponent->SetIntensity(10.f);
+        LightComponent->SetLightColor(FLinearColor(1.f, .95f, .85f));
+    }
+    if (ASkyLight* SkyLight = GetWorld()->SpawnActor<ASkyLight>(FVector::ZeroVector, FRotator::ZeroRotator))
+    {
+        USkyLightComponent* LightComponent = SkyLight->GetLightComponent();
+        LightComponent->SetMobility(EComponentMobility::Movable);
+        LightComponent->SourceType = SLS_SpecifiedCubemap;
+        LightComponent->SetCubemap(LoadObject<UTextureCube>(nullptr, TEXT("/Engine/MapTemplates/Sky/DaylightAmbientCubemap.DaylightAmbientCubemap")));
+        LightComponent->SetIntensity(1.f);
+    }
     AActor* Ground = GetWorld()->SpawnActor<AActor>(AActor::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator);
-    UStaticMeshComponent* GroundMesh = NewObject<UStaticMeshComponent>(Ground); Ground->SetRootComponent(GroundMesh); GroundMesh->RegisterComponent();
-    GroundMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"))); GroundMesh->SetWorldScale3D(FVector(140.f, 140.f, 1.f));
+    UStaticMeshComponent* GroundMesh = NewObject<UStaticMeshComponent>(Ground);
+    Ground->SetRootComponent(GroundMesh);
+    GroundMesh->RegisterComponent();
+    GroundMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")));
+    GroundMesh->SetWorldScale3D(FVector(140.f, 140.f, 1.f));
+    GroundMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    GroundMesh->SetCollisionResponseToAllChannels(ECR_Block);
+    GroundMesh->SetCanEverAffectNavigation(true);
+
     ANavMeshBoundsVolume* NavBounds = GetWorld()->SpawnActor<ANavMeshBoundsVolume>(FVector(0, 0, 100), FRotator::ZeroRotator);
-    NavBounds->GetRootComponent()->SetWorldScale3D(FVector(120.f, 120.f, 8.f));
-    if (UNavigationSystemV1* Nav = UNavigationSystemV1::GetCurrent(GetWorld())) Nav->Build();
+    UBoxComponent* NavExtent = NewObject<UBoxComponent>(NavBounds, TEXT("RuntimeNavExtent"));
+    NavBounds->AddInstanceComponent(NavExtent);
+    NavExtent->SetupAttachment(NavBounds->GetRootComponent());
+    NavExtent->SetBoxExtent(FVector(9000.f, 9000.f, 1000.f), false);
+    NavExtent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    NavExtent->SetCanEverAffectNavigation(false);
+    NavExtent->RegisterComponent();
+
+    if (UNavigationSystemV1* Nav = UNavigationSystemV1::GetCurrent(GetWorld()))
+    {
+        Nav->OnNavigationBoundsUpdated(NavBounds);
+        Nav->Tick(0.f);
+        Nav->Build();
+    }
     const FVector HumanLocation(-4500, 0, 250), SynthLocation(4500, 0, 250);
     auto MakeFactory = [this](UTFFactionDefinition* Definition, const FVector& Location, const TCHAR* Label, const TCHAR* MeshPath)
     {
