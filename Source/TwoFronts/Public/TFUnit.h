@@ -6,6 +6,8 @@
 class UTFHealthComponent;
 class UTFUnitDefinition;
 class UStaticMeshComponent;
+class UPointLightComponent;
+class UTextRenderComponent;
 class UTFCombatComponent;
 
 UCLASS(Blueprintable)
@@ -20,12 +22,15 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UStaticMeshComponent> Visual;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UStaticMeshComponent> SelectionMarker;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UStaticMeshComponent> HealthBar;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UPointLightComponent> FactionLight;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UTextRenderComponent> FactionMarker;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UTFHealthComponent> Health;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UTFCombatComponent> CombatController;
     UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly) ETFactionId Faction;
     UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UTFUnitDefinition> Definition;
     UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly) TObjectPtr<ATFUnit> CombatTarget;
     UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly) TObjectPtr<ATFUnit> CurrentRepairTarget;
+    UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly) bool bCombatEnabled = true;
     UFUNCTION(BlueprintCallable) void ApplyDefinition(UTFUnitDefinition* InDefinition);
     UFUNCTION(BlueprintCallable) void SetSelectedVisual(bool bSelected);
     UFUNCTION(BlueprintCallable) bool CanReceiveOrdersFrom(ETFactionId PlayerFaction) const;

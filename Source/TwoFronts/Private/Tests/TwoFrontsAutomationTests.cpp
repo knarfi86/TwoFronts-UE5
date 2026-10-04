@@ -106,6 +106,8 @@ bool FTFCombatDataTest::RunTest(const FString&)
     TestEqual(TEXT("Armor reduces damage"), FTFDamageSystem::CalculateDamage(20.f, 7.f), 13.f);
     TestEqual(TEXT("Armor cannot erase a positive hit"), FTFDamageSystem::CalculateDamage(4.f, 20.f), 1.f);
     TestEqual(TEXT("Non-positive damage stays zero"), FTFDamageSystem::CalculateDamage(0.f, 20.f), 0.f);
+    TestFalse(TEXT("Friendly fire is blocked by default"), FTFDamageSystem::CanApplyDamage(ETFactionId::Humans, ETFactionId::Humans, false));
+    TestTrue(TEXT("Enemy damage remains allowed"), FTFDamageSystem::CanApplyDamage(ETFactionId::Humans, ETFactionId::Synth, false));
     TestTrue(TEXT("Rifle uses a direct weapon definition"), Humans->Units[1]->Weapons.Num() == 1 && Humans->Units[1]->Weapons[0]->Delivery == ETFWeaponDelivery::Direct);
     TestTrue(TEXT("Tank uses a projectile weapon definition"), Humans->Units[2]->Weapons.Num() == 1 && Humans->Units[2]->Weapons[0]->Delivery == ETFWeaponDelivery::Projectile);
     TestTrue(TEXT("Walker also uses a projectile weapon definition"), Synth->Units[2]->Weapons.Num() == 1 && Synth->Units[2]->Weapons[0]->Delivery == ETFWeaponDelivery::Projectile);

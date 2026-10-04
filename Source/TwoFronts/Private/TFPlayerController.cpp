@@ -12,6 +12,7 @@
 #include "Blueprint/UserWidget.h"
 #include "TFFormationWidget.h"
 #include "TFFormationPlanner.h"
+#include "TFGameMode.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogTwoFrontsRTS, Log, All);
 
@@ -28,7 +29,7 @@ void ATFPlayerController::BeginPlay()
             FormationWidget->SetController(this);
             FormationWidget->AddToViewport();
             FormationWidget->SetPositionInViewport(FVector2D(16.f, 135.f), true);
-            FormationWidget->SetDesiredSizeInViewport(FVector2D(250.f, 250.f));
+            FormationWidget->SetDesiredSizeInViewport(FVector2D(250.f, 300.f));
         }
         FInputModeGameAndUI InputMode;
         InputMode.SetHideCursorDuringCapture(false);
@@ -49,6 +50,8 @@ void ATFPlayerController::SetupInputComponent()
 void ATFPlayerController::PlayerTick(float DeltaTime)
 {
     Super::PlayerTick(DeltaTime);
+    SelectedUnits.RemoveAll([](const TObjectPtr<ATFUnit>& Unit) { return !IsValid(Unit); });
+    if (!IsValid(SelectedFactory)) SelectedFactory = nullptr;
     if (!bCommandHeld || SelectedUnits.IsEmpty()) return;
 
     FVector2D CurrentMouse;
@@ -99,6 +102,19 @@ void ATFPlayerController::SelectActor(AActor* Actor, bool bAppend)
     }
     if (ATFFactory* Factory = Cast<ATFFactory>(Actor)) if (Factory->CanReceiveOrdersFrom(GetPlayerFaction())) SelectedFactory = Factory;
 }
+void ATFPlayerController::SelectUnitsOfDefinition(const UTFUnitDefinition* UnitDefinition)
+{
+    if (!UnitDefinition) return;
+    ClearSelection();
+    for (TActorIterator<ATFUnit> It(GetWorld()); It; ++It)
+    {
+        if (It->Definition == UnitDefinition && It->CanReceiveOrdersFrom(GetPlayerFaction()))
+        {
+            SelectedUnits.Add(*It);
+            It->SetSelectedVisual(true);
+        }
+    }
+}
 void ATFPlayerController::EndSelection()
 {
     if (!bSelectionInProgress) return; bSelectionInProgress = false;
@@ -113,7 +129,19 @@ void ATFPlayerController::EndSelection()
     const bool bAppend = IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
     if (FVector2D::Distance(SelectionStart, End) < 8.f)
     {
-        FHitResult Hit; if (GetWorldHit(Hit)) SelectActor(Hit.GetActor(), bAppend); else if (!bAppend) ClearSelection();
+        FHitResult Hit;
+        if (GetWorldHit(Hit))
+        {
+            if (ATFUnit* Unit = Cast<ATFUnit>(Hit.GetActor()); Unit && Unit->CanReceiveOrdersFrom(GetPlayerFaction()))
+            {
+                const float Now = GetWorld()->GetTimeSeconds();
+                const bool bDoubleClick = !bAppend && Unit->Definition && Unit->Definition == LastClickedUnitDefinition && Now - LastUnitClickTime <= .35f;
+                if (!bAppend) { LastClickedUnitDefinition = Unit->Definition; LastUnitClickTime = Now; }
+                if (bDoubleClick) SelectUnitsOfDefinition(Unit->Definition); else SelectActor(Unit, bAppend);
+            }
+            else SelectActor(Hit.GetActor(), bAppend);
+        }
+        else if (!bAppend) ClearSelection();
         return;
     }
     if (!bAppend) ClearSelection();
@@ -273,6 +301,16 @@ void ATFPlayerController::SetFormationRows(int32 NewRows)
 {
     CurrentFormationRows = FMath::Clamp(NewRows, 0, 5);
 }
+FString ATFPlayerController::GetCombatDemoStatus() const
+{
+    const ATFGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ATFGameMode>() : nullptr;
+    return GameMode ? GameMode->GetCombatDemoStatus() : TEXT("Nicht verfügbar");
+}
+int32 ATFPlayerController::GetCombatDemoRemaining(ETFactionId Faction) const
+{
+    const ATFGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ATFGameMode>() : nullptr;
+    return GameMode ? GameMode->GetCombatDemoRemaining(Faction) : 0;
+}
 FVector ATFPlayerController::GetSelectionCenter() const
 {
     FVector Center = FVector::ZeroVector;
@@ -331,4 +369,8 @@ void ATFPlayerController::ServerRepairUnits_Implementation(const TArray<ATFUnit*
 void ATFPlayerController::ServerEnqueueFactory_Implementation(ATFFactory* Factory, int32 Option)
 {
     if (IsValid(Factory) && Factory->CanReceiveOrdersFrom(GetPlayerFaction())) Factory->EnqueueProduction(Option);
+}
+void ATFPlayerController::ServerStartCombatDemo_Implementation()
+{
+    if (ATFGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ATFGameMode>() : nullptr) GameMode->StartCombatDemo();
 }

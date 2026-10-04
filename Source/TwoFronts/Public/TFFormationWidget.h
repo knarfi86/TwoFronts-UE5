@@ -19,5 +19,6 @@ private:
     FReply SelectColumn();
     FReply SelectWedge();
     FReply SelectRows(int32 NewRows);
+    FReply StartCombatDemo();
     FText GetStatusText() const;
 };

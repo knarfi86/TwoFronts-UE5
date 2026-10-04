@@ -35,6 +35,10 @@ TSharedRef<SWidget> UTFFormationWidget::RebuildWidget()
                 + SUniformGridPanel::Slot(1, 1)[SNew(SButton).OnClicked_Lambda([WeakWidget]() { return WeakWidget.IsValid() ? WeakWidget->SelectRows(4) : FReply::Unhandled(); })[SNew(STextBlock).Text(FText::FromString(TEXT("4")))]]
                 + SUniformGridPanel::Slot(2, 1)[SNew(SButton).OnClicked_Lambda([WeakWidget]() { return WeakWidget.IsValid() ? WeakWidget->SelectRows(5) : FReply::Unhandled(); })[SNew(STextBlock).Text(FText::FromString(TEXT("5")))]]
             ]
+            + SVerticalBox::Slot().AutoHeight().Padding(0.f, 7.f, 0.f, 0.f)
+            [ SNew(SButton).OnClicked_UObject(this, &UTFFormationWidget::StartCombatDemo)[SNew(STextBlock).Text(FText::FromString(TEXT("KAMPFTEST V0.3 starten")))] ]
+            + SVerticalBox::Slot().AutoHeight().Padding(0.f, 2.f)
+            [ SNew(STextBlock).Text_Lambda([WeakWidget]() { return WeakWidget.IsValid() && WeakWidget->Controller ? FText::FromString(FString::Printf(TEXT("Humans %d/10 | Synth %d/10 | %s"), WeakWidget->Controller->GetCombatDemoRemaining(ETFactionId::Humans), WeakWidget->Controller->GetCombatDemoRemaining(ETFactionId::Synth), *WeakWidget->Controller->GetCombatDemoStatus())) : FText::GetEmpty(); }) ]
         ];
 }
 void UTFFormationWidget::SetController(ATFPlayerController* InController) { Controller = InController; }
@@ -46,3 +50,4 @@ FReply UTFFormationWidget::SelectLine() { if (Controller) Controller->SetFormati
 FReply UTFFormationWidget::SelectColumn() { if (Controller) Controller->SetFormation(ETFFormation::Column); return FReply::Handled(); }
 FReply UTFFormationWidget::SelectWedge() { if (Controller) Controller->SetFormation(ETFFormation::Wedge); return FReply::Handled(); }
 FReply UTFFormationWidget::SelectRows(int32 NewRows) { if (Controller) Controller->SetFormationRows(NewRows); return FReply::Handled(); }
+FReply UTFFormationWidget::StartCombatDemo() { if (Controller) Controller->ServerStartCombatDemo(); return FReply::Handled(); }

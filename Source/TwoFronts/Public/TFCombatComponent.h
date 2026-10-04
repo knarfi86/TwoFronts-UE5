@@ -18,4 +18,5 @@ private:
     bool IsValidTarget(const ATFUnit* OwnerUnit, const ATFUnit* Target) const;
     void FireWeapon(ATFUnit* OwnerUnit, int32 WeaponIndex);
     TArray<float> NextFireTimes;
+    bool bLoggedFirstShot = false;
 };

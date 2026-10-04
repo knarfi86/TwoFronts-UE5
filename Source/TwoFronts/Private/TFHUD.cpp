@@ -13,13 +13,14 @@ void ATFHUD::DrawHUD()
     const float W = Canvas->ClipX, H = Canvas->ClipY;
     const FLinearColor Panel(.02f, .025f, .035f, .85f), White = FLinearColor::White, Accent = PC->GetPlayerFaction() == ETFactionId::Humans ? FLinearColor(.95f, .38f, .08f) : FLinearColor(.05f, .78f, .95f);
     DrawRect(Panel, 16, 16, 420, 110);
-    DrawText(FString::Printf(TEXT("Two Fronts V0.2  |  Spieler: %s"), PC->GetPlayerFaction() == ETFactionId::Humans ? TEXT("Humans") : TEXT("Synth")), Accent, 30, 28, nullptr, 1.1f);
+    DrawText(FString::Printf(TEXT("Two Fronts V0.3.1  |  Spieler: %s"), PC->GetPlayerFaction() == ETFactionId::Humans ? TEXT("Humans") : TEXT("Synth")), Accent, 30, 28, nullptr, 1.1f);
     DrawText(FString::Printf(TEXT("[1] Humans  [2] Synth   LMB: wählen   RMB: %s   Reihen: %s"), PC->IsLinePreviewActive() ? TEXT("Linie ziehen") : TEXT("Formation"), *PC->GetFormationRowsName()), White, 30, 58);
     if (!PC->SelectedUnits.IsEmpty())
     {
         ATFUnit* Unit = PC->SelectedUnits[0];
         if (Unit && Unit->Definition) DrawText(FString::Printf(TEXT("%s  HP %.0f / %.0f  |  %d ausgewählt"), *Unit->Definition->DisplayName.ToString(), Unit->Health->CurrentHealth, Unit->Health->MaxHealth, PC->SelectedUnits.Num()), White, 30, 86);
     }
+    DrawText(FString::Printf(TEXT("KAMPFTEST V0.3.1  Humans: %d/10  Synth: %d/10  %s"), PC->GetCombatDemoRemaining(ETFactionId::Humans), PC->GetCombatDemoRemaining(ETFactionId::Synth), *PC->GetCombatDemoStatus()), Accent, 30, 108);
     if (PC->IsSelectionInProgress())
     {
         FVector2D CurrentMouse; PC->GetMousePosition(CurrentMouse.X, CurrentMouse.Y);

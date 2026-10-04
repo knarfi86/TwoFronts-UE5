@@ -6,6 +6,7 @@
 class ATFUnit;
 class ATFFactory;
 class UTFFormationWidget;
+class UTFUnitDefinition;
 struct FTFFormationPlan;
 
 UCLASS()
@@ -25,6 +26,7 @@ public:
     UFUNCTION(Server, Reliable) void ServerAttackUnits(const TArray<ATFUnit*>& Units, ATFUnit* Target);
     UFUNCTION(Server, Reliable) void ServerRepairUnits(const TArray<ATFUnit*>& Units, ATFUnit* Target);
     UFUNCTION(Server, Reliable) void ServerEnqueueFactory(ATFFactory* Factory, int32 Option);
+    UFUNCTION(Server, Reliable) void ServerStartCombatDemo();
     ETFactionId GetPlayerFaction() const;
     ETFFormation GetFormation() const { return CurrentFormation; }
     FString GetFormationName() const;
@@ -32,6 +34,8 @@ public:
     int32 GetFormationRows() const { return CurrentFormationRows; }
     FString GetFormationRowsName() const;
     void SetFormationRows(int32 NewRows);
+    FString GetCombatDemoStatus() const;
+    int32 GetCombatDemoRemaining(ETFactionId Faction) const;
     bool IsSelectionInProgress() const { return bSelectionInProgress; }
     FVector2D GetSelectionStart() const { return SelectionStart; }
     bool IsLinePreviewActive() const { return bLineCommandActive; }
@@ -50,11 +54,14 @@ private:
     TArray<FVector> PreviewTargets;
     ETFFormation CurrentFormation = ETFFormation::Line;
     int32 CurrentFormationRows = 0;
+    TObjectPtr<UTFUnitDefinition> LastClickedUnitDefinition;
+    float LastUnitClickTime = -100.f;
     UPROPERTY() TObjectPtr<UTFFormationWidget> FormationWidget;
     void BeginSelection(); void EndSelection();
     void BeginCommand(); void EndCommand(); void CancelCommand();
     void ChooseHumans(); void ChooseSynth();
     void SelectActor(AActor* Actor, bool bAppend); void ClearSelection();
+    void SelectUnitsOfDefinition(const UTFUnitDefinition* UnitDefinition);
     void IssueShortCommand(const FHitResult& Hit);
     void IssueMoveCommand(const TArray<FVector>& Destinations, FVector DesiredFacing);
     TArray<FVector> BuildStandardFormationTargets(const FVector& Destination) const;

@@ -3,6 +3,8 @@
 #include "TFUnitDefinition.h"
 #include "TFWeaponDefinition.h"
 #include "TFUnit.h"
+#include "TFHealthComponent.h"
+#include "TFDamageSystem.h"
 #include "TFFactory.h"
 #include "TFPlayerController.h"
 #include "TFPlayerState.h"
@@ -17,6 +19,8 @@
 #include "Engine/TextureCube.h"
 #include "NavigationSystem.h"
 #include "NavMesh/NavMeshBoundsVolume.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 ATFGameMode::ATFGameMode()
 {
@@ -24,6 +28,7 @@ ATFGameMode::ATFGameMode()
     PlayerStateClass = ATFPlayerState::StaticClass();
     DefaultPawnClass = ATFRTSCameraPawn::StaticClass();
     HUDClass = ATFHUD::StaticClass();
+    PrimaryActorTick.bCanEverTick = true;
 }
 UTFUnitDefinition* ATFGameMode::MakeUnit(UTFFactionDefinition* FactionDefinition, FName Id, const FText& Name, ETUnitRole UnitRole, float HP, float Speed, float Damage, float Range, float Cooldown, float Repair, float BuildTime, const TCHAR* MeshPath)
 {
@@ -65,7 +70,8 @@ void ATFGameMode::CreateRuntimeDefinitions()
     Synth->Units[2]->Weapons.Add(MakeWeapon(TEXT("SynthWalkerBolt"), FText::FromString(TEXT("Walker Bolt")), 35.f, 850.f, 1.25f, ETFWeaponDelivery::Projectile, 1400.f));
 }
 UTFFactionDefinition* ATFGameMode::GetFactionDefinition(ETFactionId Faction) const { return Faction == ETFactionId::Humans ? Humans : (Faction == ETFactionId::Synth ? Synth : nullptr); }
-void ATFGameMode::BeginPlay() { Super::BeginPlay(); CreateRuntimeDefinitions(); if (HasAuthority()) BuildTestArena(); }
+void ATFGameMode::BeginPlay() { Super::BeginPlay(); CreateRuntimeDefinitions(); if (HasAuthority()) { BuildTestArena(); if (FParse::Param(FCommandLine::Get(), TEXT("CombatDemoTest"))) StartCombatDemo(); } }
+void ATFGameMode::Tick(float DeltaSeconds) { Super::Tick(DeltaSeconds); if (HasAuthority()) UpdateCombatDemo(); }
 void ATFGameMode::PostLogin(APlayerController* NewPlayer)
 {
     Super::PostLogin(NewPlayer);
@@ -149,4 +155,64 @@ void ATFGameMode::BuildTestArena()
     };
     SpawnInitial(Humans, HumanLocation, 1.f); SpawnInitial(Synth, SynthLocation, -1.f);
     UE_LOG(LogTemp, Display, TEXT("Two Fronts test arena spawned %d mobile units (%d per category and faction)."), SpawnedUnitCount, InitialUnitsPerCategory);
+}
+ATFUnit* ATFGameMode::SpawnCombatDemoUnit(UTFUnitDefinition* Definition, const FVector& Location)
+{
+    if (!Definition) return nullptr;
+    if (ATFUnit* Unit = GetWorld()->SpawnActor<ATFUnit>(Location, FRotator::ZeroRotator)) { Unit->ApplyDefinition(Definition); Unit->bCombatEnabled = false; return Unit; }
+    return nullptr;
+}
+void ATFGameMode::StartCombatDemo()
+{
+    if (!HasAuthority()) return;
+    for (ATFUnit* Unit : CombatDemoHumans) if (IsValid(Unit)) Unit->Destroy();
+    for (ATFUnit* Unit : CombatDemoSynth) if (IsValid(Unit)) Unit->Destroy();
+    CombatDemoHumans.Empty(); CombatDemoSynth.Empty(); bCombatDemoStarted = false; bCombatDemoFinished = false;
+    for (int32 Index = 0; Index < 10; ++Index)
+    {
+        const float Y = (Index % 5 - 2) * 180.f;
+        const float XOffset = Index < 5 ? 0.f : 80.f;
+        if (ATFUnit* Unit = SpawnCombatDemoUnit(Humans->Units[Index < 5 ? 1 : 2], FVector(-250.f - XOffset, Y, 120.f))) CombatDemoHumans.Add(Unit);
+        if (ATFUnit* Unit = SpawnCombatDemoUnit(Synth->Units[Index < 5 ? 1 : 2], FVector(250.f + XOffset, Y, 120.f))) CombatDemoSynth.Add(Unit);
+    }
+    if (FParse::Param(FCommandLine::Get(), TEXT("CombatDemoTest")) && CombatDemoHumans.Num() > 1)
+    {
+        FTFDamageRequest FriendlyFireProbe;
+        FriendlyFireProbe.RawDamage = 50.f;
+        FriendlyFireProbe.SourceActor = CombatDemoHumans[0];
+        const float AppliedDamage = FTFDamageSystem::ApplyDamage(CombatDemoHumans[1], FriendlyFireProbe);
+        UE_LOG(LogTemp, Display, TEXT("COMBAT_FRIENDLY_FIRE_BLOCKED Applied=%.1f HP=%.1f"), AppliedDamage, CombatDemoHumans[1]->Health->CurrentHealth);
+    }
+    CombatDemoStartTime = GetWorld()->GetTimeSeconds() + 3.f;
+    UE_LOG(LogTemp, Display, TEXT("COMBAT_DEMO_PREPARED Humans=10 Synth=10 Countdown=3"));
+}
+int32 ATFGameMode::GetCombatDemoRemaining(ETFactionId Faction) const
+{
+    const TArray<TObjectPtr<ATFUnit>>& Units = Faction == ETFactionId::Humans ? CombatDemoHumans : CombatDemoSynth;
+    int32 Remaining = 0; for (const ATFUnit* Unit : Units) if (IsValid(Unit) && Unit->Health && Unit->Health->IsAlive()) ++Remaining;
+    return Remaining;
+}
+FString ATFGameMode::GetCombatDemoStatus() const
+{
+    if (CombatDemoStartTime < 0.f) return TEXT("Bereit");
+    if (!bCombatDemoStarted) return FString::Printf(TEXT("Start in %.0f"), FMath::Max(0.f, CombatDemoStartTime - GetWorld()->GetTimeSeconds()));
+    const int32 HumansRemaining = GetCombatDemoRemaining(ETFactionId::Humans), SynthRemaining = GetCombatDemoRemaining(ETFactionId::Synth);
+    if (HumansRemaining == 0 || SynthRemaining == 0) return HumansRemaining > 0 ? TEXT("Humans siegen") : (SynthRemaining > 0 ? TEXT("Synth siegen") : TEXT("Unentschieden"));
+    return TEXT("Gefecht läuft");
+}
+void ATFGameMode::UpdateCombatDemo()
+{
+    if (CombatDemoStartTime < 0.f) return;
+    if (!bCombatDemoStarted && GetWorld()->GetTimeSeconds() >= CombatDemoStartTime)
+    {
+        bCombatDemoStarted = true;
+        for (ATFUnit* Unit : CombatDemoHumans) if (IsValid(Unit)) Unit->bCombatEnabled = true;
+        for (ATFUnit* Unit : CombatDemoSynth) if (IsValid(Unit)) Unit->bCombatEnabled = true;
+        UE_LOG(LogTemp, Display, TEXT("COMBAT_DEMO_STARTED Humans=%d Synth=%d"), GetCombatDemoRemaining(ETFactionId::Humans), GetCombatDemoRemaining(ETFactionId::Synth));
+    }
+    if (bCombatDemoStarted && !bCombatDemoFinished && (GetCombatDemoRemaining(ETFactionId::Humans) == 0 || GetCombatDemoRemaining(ETFactionId::Synth) == 0))
+    {
+        bCombatDemoFinished = true;
+        UE_LOG(LogTemp, Display, TEXT("COMBAT_DEMO_FINISHED %s"), *GetCombatDemoStatus());
+    }
 }

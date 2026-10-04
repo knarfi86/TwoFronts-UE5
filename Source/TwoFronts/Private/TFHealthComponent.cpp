@@ -19,7 +19,7 @@ float UTFHealthComponent::ApplyDamage(float Damage)
     const float Applied = FMath::Min(Damage, CurrentHealth);
     CurrentHealth -= Applied;
     OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
-    if (!IsAlive() && GetOwner()) GetOwner()->Destroy();
+    if (!IsAlive() && GetOwner()) { UE_LOG(LogTemp, Display, TEXT("COMBAT_DESTROYED %s"), *GetOwner()->GetName()); GetOwner()->Destroy(); }
     return Applied;
 }
 float UTFHealthComponent::Repair(float Amount)

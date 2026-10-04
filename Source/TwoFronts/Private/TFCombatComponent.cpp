@@ -30,6 +30,7 @@ void UTFCombatComponent::FireWeapon(ATFUnit* OwnerUnit, int32 WeaponIndex)
     const UTFWeaponDefinition* Weapon = OwnerUnit->Definition->Weapons[WeaponIndex];
     ATFUnit* Target = OwnerUnit->CombatTarget;
     FTFDamageRequest Damage; Damage.RawDamage = Weapon->Damage; Damage.SourceActor = OwnerUnit;
+    if (!bLoggedFirstShot) { UE_LOG(LogTemp, Display, TEXT("COMBAT_SHOT %s -> %s with %s"), *OwnerUnit->GetName(), *Target->GetName(), *Weapon->WeaponId.ToString()); bLoggedFirstShot = true; }
     if (Weapon->Delivery == ETFWeaponDelivery::Projectile)
     {
         if (ATFProjectile* Projectile = GetWorld()->SpawnActor<ATFProjectile>(OwnerUnit->GetActorLocation() + FVector(0.f, 0.f, 70.f), FRotator::ZeroRotator)) Projectile->Initialise(Target, Damage, Weapon->ProjectileSpeed);
@@ -40,8 +41,12 @@ void UTFCombatComponent::TickComponent(float DeltaSeconds, ELevelTick TickType, 
 {
     Super::TickComponent(DeltaSeconds, TickType, ThisTickFunction);
     ATFUnit* OwnerUnit = Cast<ATFUnit>(GetOwner());
-    if (!OwnerUnit || !OwnerUnit->HasAuthority() || !OwnerUnit->Definition || !OwnerUnit->Health->IsAlive()) return;
-    if (!IsValidTarget(OwnerUnit, OwnerUnit->CombatTarget) || FVector::Dist2D(OwnerUnit->GetActorLocation(), OwnerUnit->CombatTarget->GetActorLocation()) > OwnerUnit->Definition->AcquisitionRange) OwnerUnit->CombatTarget = FindBestTarget(OwnerUnit);
+    if (!OwnerUnit || !OwnerUnit->HasAuthority() || !OwnerUnit->bCombatEnabled || !OwnerUnit->Definition || !OwnerUnit->Health->IsAlive()) return;
+    if (!IsValidTarget(OwnerUnit, OwnerUnit->CombatTarget) || FVector::Dist2D(OwnerUnit->GetActorLocation(), OwnerUnit->CombatTarget->GetActorLocation()) > OwnerUnit->Definition->AcquisitionRange)
+    {
+        OwnerUnit->CombatTarget = FindBestTarget(OwnerUnit);
+        if (OwnerUnit->CombatTarget) UE_LOG(LogTemp, Display, TEXT("COMBAT_TARGET %s acquired %s"), *OwnerUnit->GetName(), *OwnerUnit->CombatTarget->GetName());
+    }
     if (!OwnerUnit->CombatTarget) return;
     if (NextFireTimes.Num() != OwnerUnit->Definition->Weapons.Num()) NextFireTimes.SetNumZeroed(OwnerUnit->Definition->Weapons.Num());
     const float Now = GetWorld()->GetTimeSeconds();

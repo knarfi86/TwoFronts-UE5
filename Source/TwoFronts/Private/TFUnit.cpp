@@ -5,6 +5,8 @@
 #include "TFDamageSystem.h"
 #include "TFCombatComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/PointLightComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "AIController.h"
 #include "Kismet/GameplayStatics.h"
@@ -29,6 +31,19 @@ ATFUnit::ATFUnit()
     HealthBar->SetRelativeLocation(FVector(0.f, 0.f, 130.f));
     HealthBar->SetRelativeScale3D(FVector(1.2f, .08f, .08f));
     HealthBar->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    FactionLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("FactionLight"));
+    FactionLight->SetupAttachment(GetRootComponent());
+    FactionLight->SetRelativeLocation(FVector(0.f, 0.f, 75.f));
+    FactionLight->SetIntensity(100000.f);
+    FactionLight->SetAttenuationRadius(220.f);
+    FactionLight->SetCastShadows(false);
+    FactionMarker = CreateDefaultSubobject<UTextRenderComponent>(TEXT("FactionMarker"));
+    FactionMarker->SetupAttachment(GetRootComponent());
+    FactionMarker->SetRelativeLocation(FVector(0.f, 0.f, 155.f));
+    FactionMarker->SetRelativeRotation(FRotator(90.f, 0.f, 0.f));
+    FactionMarker->SetWorldSize(42.f);
+    FactionMarker->SetHorizontalAlignment(EHTA_Center);
+    FactionMarker->SetVerticalAlignment(EVRTA_TextCenter);
     Health->OnHealthChanged.AddDynamic(this, &ATFUnit::UpdateHealthVisual);
     CombatController = CreateDefaultSubobject<UTFCombatComponent>(TEXT("CombatController"));
     GetCharacterMovement()->bOrientRotationToMovement = true;
@@ -44,6 +59,11 @@ void ATFUnit::ApplyDefinition(UTFUnitDefinition* InDefinition)
     Health->Initialise(InDefinition->MaxHealth);
     GetCharacterMovement()->MaxWalkSpeed = InDefinition->MoveSpeed;
     if (UStaticMesh* PlaceholderMesh = InDefinition->PlaceholderMesh.LoadSynchronous()) Visual->SetStaticMesh(PlaceholderMesh);
+    const FLinearColor FactionColor = Faction == ETFactionId::Humans ? FLinearColor(.95f, .28f, .05f) : FLinearColor(.05f, .75f, 1.f);
+    Visual->SetVectorParameterValueOnMaterials(TEXT("Color"), FVector(FactionColor));
+    FactionLight->SetLightColor(FactionColor);
+    FactionMarker->SetText(Faction == ETFactionId::Humans ? FText::FromString(TEXT("H")) : FText::FromString(TEXT("S")));
+    FactionMarker->SetTextRenderColor(FactionColor.ToFColor(true));
     if (UStaticMesh* SelectionMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder")))
     {
         SelectionMarker->SetStaticMesh(SelectionMesh);
@@ -94,5 +114,5 @@ void ATFUnit::Tick(float DeltaSeconds) { Super::Tick(DeltaSeconds); AutoAttack(D
 void ATFUnit::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-    DOREPLIFETIME(ATFUnit, Faction); DOREPLIFETIME(ATFUnit, Definition); DOREPLIFETIME(ATFUnit, CombatTarget); DOREPLIFETIME(ATFUnit, CurrentRepairTarget);
+    DOREPLIFETIME(ATFUnit, Faction); DOREPLIFETIME(ATFUnit, Definition); DOREPLIFETIME(ATFUnit, CombatTarget); DOREPLIFETIME(ATFUnit, CurrentRepairTarget); DOREPLIFETIME(ATFUnit, bCombatEnabled);
 }

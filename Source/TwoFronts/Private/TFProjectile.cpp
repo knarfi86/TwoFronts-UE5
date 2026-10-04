@@ -2,27 +2,49 @@
 #include "TFDamageSystem.h"
 #include "TFUnit.h"
 #include "TFHealthComponent.h"
+#include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "GameFramework/ProjectileMovementComponent.h"
 
 ATFProjectile::ATFProjectile()
 {
-    PrimaryActorTick.bCanEverTick = true;
     bReplicates = true;
     SetReplicateMovement(true);
+    InitialLifeSpan = 5.f;
+    Collision = CreateDefaultSubobject<USphereComponent>(TEXT("Collision"));
+    Collision->SetSphereRadius(12.f);
+    Collision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    Collision->SetCollisionObjectType(ECC_WorldDynamic);
+    Collision->SetCollisionResponseToAllChannels(ECR_Ignore);
+    Collision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+    SetRootComponent(Collision);
+    Collision->OnComponentBeginOverlap.AddDynamic(this, &ATFProjectile::HandleProjectileOverlap);
     Visual = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Visual"));
-    SetRootComponent(Visual);
+    Visual->SetupAttachment(Collision);
     Visual->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")));
     Visual->SetRelativeScale3D(FVector(.12f));
     Visual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    ProjectileMovement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovement"));
+    ProjectileMovement->UpdatedComponent = Collision;
+    ProjectileMovement->bRotationFollowsVelocity = true;
+    ProjectileMovement->bIsHomingProjectile = true;
 }
-void ATFProjectile::Initialise(ATFUnit* InTarget, const FTFDamageRequest& InDamage, float InSpeed) { Target = InTarget; Damage = InDamage; Speed = FMath::Max(100.f, InSpeed); }
-void ATFProjectile::Tick(float DeltaSeconds)
+void ATFProjectile::Initialise(ATFUnit* InTarget, const FTFDamageRequest& InDamage, float InSpeed)
 {
-    Super::Tick(DeltaSeconds);
-    Lifetime -= DeltaSeconds;
-    if (!HasAuthority() || Lifetime <= 0.f || !IsValid(Target) || !Target->Health || !Target->Health->IsAlive()) { Destroy(); return; }
-    const FVector TargetLocation = Target->GetActorLocation() + FVector(0.f, 0.f, 50.f);
-    const FVector Offset = TargetLocation - GetActorLocation();
-    if (Offset.SizeSquared2D() <= FMath::Square(Speed * DeltaSeconds + 50.f)) { FTFDamageSystem::ApplyDamage(Target, Damage); Destroy(); return; }
-    SetActorLocation(GetActorLocation() + Offset.GetSafeNormal() * Speed * DeltaSeconds);
+    if (!HasAuthority() || !IsValid(InTarget) || !InTarget->GetRootComponent()) { Destroy(); return; }
+    Target = InTarget;
+    Damage = InDamage;
+    const float ProjectileSpeed = FMath::Max(100.f, InSpeed);
+    ProjectileMovement->InitialSpeed = ProjectileSpeed;
+    ProjectileMovement->MaxSpeed = ProjectileSpeed;
+    ProjectileMovement->HomingAccelerationMagnitude = ProjectileSpeed * 4.f;
+    ProjectileMovement->HomingTargetComponent = Target->GetRootComponent();
+    ProjectileMovement->Velocity = (Target->GetActorLocation() + FVector(0.f, 0.f, 50.f) - GetActorLocation()).GetSafeNormal() * ProjectileSpeed;
+    ProjectileMovement->Activate(true);
+}
+void ATFProjectile::HandleProjectileOverlap(UPrimitiveComponent*, AActor* OtherActor, UPrimitiveComponent*, int32, bool, const FHitResult&)
+{
+    if (!HasAuthority() || OtherActor != Target) return;
+    if (Target && Target->Health && Target->Health->IsAlive()) FTFDamageSystem::ApplyDamage(Target, Damage);
+    Destroy();
 }
