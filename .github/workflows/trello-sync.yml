@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  checks: read
 
 jobs:
   sync-trello-card:
@@ -20,14 +19,15 @@ jobs:
         with:
           fetch-depth: 5
 
-      - name: Synchronisierungslogik mit Testdaten prüfen
+      - name: E-Mail-Logik mit Testdaten prüfen
         run: python -m unittest discover -s Tests/TrelloSync -p "test_*.py" -v
 
-      - name: Bestehende Trello-Karte aktualisieren
+      - name: Entwicklungsbericht an Trello-Karte senden
         env:
-          TRELLO_API_KEY: ${{ secrets.TRELLO_API_KEY }}
-          TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
-          TRELLO_CARD_ID: ${{ vars.TRELLO_CARD_ID }}
-          TRELLO_NEXT_STEP: ${{ vars.TRELLO_NEXT_STEP }}
-          GITHUB_TOKEN: ${{ github.token }}
-        run: python .github/scripts/sync_trello_status.py
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          TRELLO_CARD_EMAIL: ${{ secrets.TRELLO_CARD_EMAIL }}
+          SMTP_HOST: ${{ vars.SMTP_HOST || 'smtp.gmail.com' }}
+          SMTP_PORT: ${{ vars.SMTP_PORT || '465' }}
+          SMTP_USE_SSL: ${{ vars.SMTP_USE_SSL || 'true' }}
+        run: python .github/scripts/send_trello_report.py

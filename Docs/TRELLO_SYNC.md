@@ -1,35 +1,25 @@
-# GitHub–Trello-Synchronisierung einrichten
+# GitHub–Trello-Entwicklungsberichte per E-Mail einrichten
 
-Der Workflow aktualisiert ausschließlich den klar markierten Bereich **„Automatisch synchronisierter GitHub-Status“** in der bestehenden Karte **„Aktueller Projektstand“**. Die restliche Beschreibung sowie Checklisten, Kommentare, Labels und Zuständigkeiten der Karte bleiben unverändert. Bei einer falsch konfigurierten Karte bricht der Workflow vor dem Schreiben ab.
+Nach jedem Push auf `main` sendet GitHub Actions einen Entwicklungsbericht an die bestehende Trello-Kartenadresse von **„Aktueller Projektstand“**. Trello fügt jede eingehende Nachricht dort als neuen Kommentar hinzu. Der Workflow verwendet keine Trello-REST-API und verändert weder Kartenbeschreibung noch Checklisten, Labels, Mitglieder oder vorhandene Kommentare.
 
 ## Einmalig einrichten
 
-1. Melde dich bei Trello an und öffne [Trello Apps](https://trello.com/apps/admin). Lege dort bei Bedarf ein kostenloses Power-Up an, öffne dessen Bereich **Trello Auth/API Key** und wähle **Generate a new API Key**. Kopiere den Schlüssel.
-2. Klicke auf derselben Seite neben dem Schlüssel auf **Token**, erteile der App **read**- und **write**-Berechtigung und wähle die dauerhafte Laufzeit (*never*), sofern Trello diese anbietet. Kopiere das erzeugte Token sofort und behandle es wie ein Passwort.
-3. Öffne das GitHub-Repository **Settings → Secrets and variables → Actions → Secrets** und lege diese beiden Repository-Secrets an:
-   - `TRELLO_API_KEY`: der API-Schlüssel
-   - `TRELLO_TOKEN`: das Token
-4. Ermittle die ID der vorhandenen Karte. Öffne **Aktueller Projektstand**, kopiere ihren Link und übernimm den Teil direkt nach `https://trello.com/c/` (der Shortlink ist für die Karten-API zulässig). Alternativ liefert der folgende lokale PowerShell-Befehl die vollständige ID und den Kartennamen; Werte nicht in die Shell-Historie oder ein Repository kopieren:
+1. Öffne in Trello die vorhandene Karte **„Aktueller Projektstand“** und kopiere ihre persönliche Karten-E-Mail-Adresse. Der E-Mail-Empfang wurde bereits erfolgreich getestet.
+2. Öffne im GitHub-Repository **Settings → Secrets and variables → Actions → Secrets** und hinterlege diese drei Repository-Secrets:
+   - `SMTP_USER`: vollständige Absender-E-Mail-Adresse des SMTP-Kontos
+   - `SMTP_PASSWORD`: SMTP-Passwort; bei Gmail ein App-Passwort, nicht das normale Google-Passwort
+   - `TRELLO_CARD_EMAIL`: kopierte E-Mail-Adresse der vorhandenen Trello-Karte
+3. Für Gmail ist keine weitere Konfiguration nötig: Der Workflow nutzt `smtp.gmail.com`, Port `465` und SSL. Für einen anderen Anbieter lege unter **Settings → Secrets and variables → Actions → Variables** bei Bedarf diese nicht-sensitiven Repository-Variablen an:
+   - `SMTP_HOST`, zum Beispiel `mail.example.de`
+   - `SMTP_PORT`, zum Beispiel `587`
+   - `SMTP_USE_SSL`: `true` für direktes SSL (Port 465) oder `false` für STARTTLS (typisch Port 587)
+4. Starte den Erstlauf über **Actions → Trello-Status synchronisieren → Run workflow**, wähle `main` und bestätige den Lauf. Zuerst laufen die Offline-Tests; danach wird genau eine E-Mail an die konfigurierte Kartenadresse gesendet.
 
-   ```powershell
-   $apiKey = Read-Host 'Trello API-Schlüssel'
-   $token = Read-Host 'Trello Token'
-   $cardUrl = Read-Host 'Link der Karte Aktueller Projektstand'
-   $shortLink = ([uri]$cardUrl).Segments[2].TrimEnd('/')
-   $card = Invoke-RestMethod -Uri "https://api.trello.com/1/cards/$shortLink?fields=id,name&key=$apiKey&token=$token"
-   $card | Select-Object id, name
-   ```
-
-   Trage die ausgegebene `id` im Repository unter **Settings → Secrets and variables → Actions → Variables** als `TRELLO_CARD_ID` ein. Der Workflow akzeptiert auch den Shortlink, prüft jedoch in jedem Fall den Kartennamen vor dem Update.
-5. Optional: Pflege unter demselben Bereich eine Variable `TRELLO_NEXT_STEP`, wenn ein nächster Entwicklungsschritt angezeigt werden soll. Ohne diese Variable erscheint kein entsprechender Hinweis.
-6. Öffne **Actions → Trello-Status synchronisieren → Run workflow**, wähle `main` und starte den Lauf. Der Workflow führt zuerst die Offline-Tests mit Testdaten aus. Erst danach liest er die konfigurierte Karte und aktualisiert nur ihren markierten Statusbereich.
-
-Nach jedem Push auf `main` läuft die Synchronisierung ebenfalls. Der Build-Status wird nur angezeigt, wenn für den Commit bereits abgeschlossene GitHub-Checks existieren; laufende oder fehlende Checks werden ausdrücklich als solche angezeigt.
+Jeder Bericht enthält den aktuellen Commit, verantwortlichen Entwickler, Datum/Uhrzeit, die bis zu fünf letzten Commits, die im neuesten Commit geänderten Dateien und GitHub-Links zu jedem aufgeführten Commit.
 
 ## Sicherheit und Fehlerbehebung
 
-- Schlüssel und Token stehen ausschließlich in GitHub Secrets, nicht im Repository oder in Workflow-Ausgaben.
-- Fehler bei fehlenden Konfigurationswerten, API-Zugriff oder falschem Kartennamen brechen mit einer verständlichen Meldung ab, ohne die Karte zu verändern.
-- Falls die Statusmarkierungen in Trello manuell beschädigt oder doppelt angelegt wurden, stoppt der Workflow zum Schutz der manuellen Beschreibung. Stelle dann genau ein Start- und End-Markierungspaar wieder her oder entferne beide vollständig; beim nächsten Lauf wird ein neuer Bereich angelegt.
-
-Die verwendete Karten-Aktualisierung (`PUT /1/cards/{id}`) und die tokenbasierte Autorisierung entsprechen der offiziellen [Trello-API-Einführung](https://developer.atlassian.com/cloud/trello/guides/rest-api/api-introduction/) und der [Cards-API-Referenz](https://developer.atlassian.com/cloud/trello/rest/api-group-cards/).
+- Die drei Zugangswerte stehen ausschließlich in GitHub Secrets. Das Skript und der Workflow geben weder Passwörter noch Kartenadresse aus.
+- Fehlende oder ungültige Konfiguration sowie SMTP-Fehler führen zu einer verständlichen Fehlermeldung und einem fehlgeschlagenen Workflow-Lauf. Die konkrete SMTP-Fehlerantwort wird nicht geloggt.
+- Für Gmail muss das SMTP-Konto SMTP-Zugriff erlauben; bei aktivierter Zwei-Faktor-Anmeldung wird ein [Google App-Passwort](https://support.google.com/accounts/answer/185833) benötigt.
+- Ein Push erzeugt absichtlich einen neuen Trello-Kommentar. Das ist die gewünschte, nicht-destruktive Historie; bestehende Trello-Inhalte werden nicht gelesen, geändert oder gelöscht.
