@@ -31,10 +31,10 @@ void ATFUnit::ApplyDefinition(UTFUnitDefinition* InDefinition)
     Faction = InDefinition->Faction;
     Health->Initialise(InDefinition->MaxHealth);
     GetCharacterMovement()->MaxWalkSpeed = InDefinition->MoveSpeed;
-    if (UStaticMesh* Mesh = InDefinition->PlaceholderMesh.LoadSynchronous()) Visual->SetStaticMesh(Mesh);
-    if (UStaticMesh* Ring = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Torus.Torus")))
+    if (UStaticMesh* PlaceholderMesh = InDefinition->PlaceholderMesh.LoadSynchronous()) Visual->SetStaticMesh(PlaceholderMesh);
+    if (UStaticMesh* SelectionMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder")))
     {
-        SelectionMarker->SetStaticMesh(Ring);
+        SelectionMarker->SetStaticMesh(SelectionMesh);
         SelectionMarker->SetRelativeLocation(FVector(0, 0, -82.f));
         SelectionMarker->SetRelativeScale3D(FVector(1.45f, 1.45f, .12f));
     }
@@ -84,8 +84,8 @@ void ATFUnit::AutoAttack(float DeltaSeconds)
     }
 }
 void ATFUnit::Tick(float DeltaSeconds) { Super::Tick(DeltaSeconds); AutoAttack(DeltaSeconds); if (CurrentRepairTarget) RepairTarget(CurrentRepairTarget, DeltaSeconds); }
-void ATFUnit::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const
+void ATFUnit::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
-    Super::GetLifetimeReplicatedProps(Out);
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(ATFUnit, Faction); DOREPLIFETIME(ATFUnit, Definition); DOREPLIFETIME(ATFUnit, CombatTarget); DOREPLIFETIME(ATFUnit, CurrentRepairTarget);
 }

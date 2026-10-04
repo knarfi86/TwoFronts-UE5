@@ -49,8 +49,8 @@ void ATFFactory::SpawnCompletedUnit(UTFUnitDefinition* UnitDefinition)
         if (UNavigationSystemV1* Nav = UNavigationSystemV1::GetCurrent(GetWorld())) { FNavLocation NavLocation; if (Nav->ProjectPointToNavigation(Location, NavLocation)) Unit->SetActorLocation(NavLocation.Location); }
     }
 }
-void ATFFactory::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const
+void ATFFactory::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
-    Super::GetLifetimeReplicatedProps(Out);
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(ATFFactory, Faction); DOREPLIFETIME(ATFFactory, ProductionQueue);
 }

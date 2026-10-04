@@ -25,6 +25,7 @@ public:
     ATFFactory();
     virtual void Tick(float DeltaSeconds) override;
     virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UStaticMeshComponent> Visual;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UBoxComponent> Collision;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly) TObjectPtr<UTFHealthComponent> Health;

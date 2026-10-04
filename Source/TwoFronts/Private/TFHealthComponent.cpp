@@ -31,8 +31,8 @@ float UTFHealthComponent::Repair(float Amount)
     return CurrentHealth - Before;
 }
 void UTFHealthComponent::OnRep_Health() { OnHealthChanged.Broadcast(CurrentHealth, MaxHealth); }
-void UTFHealthComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const
+void UTFHealthComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
-    Super::GetLifetimeReplicatedProps(Out);
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(UTFHealthComponent, CurrentHealth);
 }

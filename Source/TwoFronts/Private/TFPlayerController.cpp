@@ -21,7 +21,7 @@ ETFactionId ATFPlayerController::GetPlayerFaction() const { return GetPlayerStat
 void ATFPlayerController::ChooseHumans() { RequestedFaction = ETFactionId::Humans; ServerSetFaction(RequestedFaction); ClearSelection(); }
 void ATFPlayerController::ChooseSynth() { RequestedFaction = ETFactionId::Synth; ServerSetFaction(RequestedFaction); ClearSelection(); }
 void ATFPlayerController::ServerSetFaction_Implementation(ETFactionId NewFaction) { if (ATFPlayerState* State = GetPlayerState<ATFPlayerState>()) State->ChosenFaction = (NewFaction == ETFactionId::Synth ? ETFactionId::Synth : ETFactionId::Humans); }
-bool ATFPlayerController::GetWorldHit(FHitResult& OutHit) const { return GetHitResultUnderCursorByChannel(ECC_Visibility, false, OutHit); }
+bool ATFPlayerController::GetWorldHit(FHitResult& OutHit) const { return GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), false, OutHit); }
 void ATFPlayerController::BeginSelection() { GetMousePosition(SelectionStart.X, SelectionStart.Y); bSelectionInProgress = true; }
 void ATFPlayerController::ClearSelection()
 {

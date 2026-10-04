@@ -18,13 +18,13 @@ ATFGameMode::ATFGameMode()
     DefaultPawnClass = ATFRTSCameraPawn::StaticClass();
     HUDClass = ATFHUD::StaticClass();
 }
-UTFUnitDefinition* ATFGameMode::MakeUnit(UTFFactionDefinition* Owner, FName Id, const FText& Name, ETUnitRole Role, float HP, float Speed, float Damage, float Range, float Cooldown, float Repair, float BuildTime, const TCHAR* MeshPath)
+UTFUnitDefinition* ATFGameMode::MakeUnit(UTFFactionDefinition* FactionDefinition, FName Id, const FText& Name, ETUnitRole UnitRole, float HP, float Speed, float Damage, float Range, float Cooldown, float Repair, float BuildTime, const TCHAR* MeshPath)
 {
-    UTFUnitDefinition* Def = NewObject<UTFUnitDefinition>(Owner, Id);
-    Def->UnitId = Id; Def->DisplayName = Name; Def->Faction = Owner->Faction; Def->Role = Role;
-    Def->MaxHealth = HP; Def->MoveSpeed = Speed; Def->SightRange = (Role == ETUnitRole::Scout ? 1800.f : 1200.f);
+    UTFUnitDefinition* Def = NewObject<UTFUnitDefinition>(FactionDefinition, Id);
+    Def->UnitId = Id; Def->DisplayName = Name; Def->Faction = FactionDefinition->Faction; Def->Role = UnitRole;
+    Def->MaxHealth = HP; Def->MoveSpeed = Speed; Def->SightRange = (UnitRole == ETUnitRole::Scout ? 1800.f : 1200.f);
     Def->Combat.Damage = Damage; Def->Combat.Range = Range; Def->Combat.Cooldown = Cooldown; Def->RepairPerSecond = Repair; Def->ProductionSeconds = BuildTime;
-    Def->PlaceholderMesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(MeshPath)); Owner->Units.Add(Def);
+    Def->PlaceholderMesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(MeshPath)); FactionDefinition->Units.Add(Def);
     return Def;
 }
 void ATFGameMode::CreateRuntimeDefinitions()

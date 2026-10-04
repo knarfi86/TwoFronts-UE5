@@ -8,5 +8,6 @@ class TWOFRONTS_API ATFPlayerState : public APlayerState
 {
     GENERATED_BODY()
 public:
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
     UPROPERTY(Replicated, BlueprintReadOnly) ETFactionId ChosenFaction = ETFactionId::Humans;
 };

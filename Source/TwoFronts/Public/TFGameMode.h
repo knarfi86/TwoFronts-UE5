@@ -20,6 +20,6 @@ public:
 private:
     UPROPERTY(Transient) TObjectPtr<UTFFactionDefinition> Humans;
     UPROPERTY(Transient) TObjectPtr<UTFFactionDefinition> Synth;
-    UTFUnitDefinition* MakeUnit(UTFFactionDefinition* Owner, FName Id, const FText& Name, ETUnitRole Role, float HP, float Speed, float Damage, float Range, float Cooldown, float Repair, float BuildTime, const TCHAR* MeshPath);
+    UTFUnitDefinition* MakeUnit(UTFFactionDefinition* FactionDefinition, FName Id, const FText& Name, ETUnitRole UnitRole, float HP, float Speed, float Damage, float Range, float Cooldown, float Repair, float BuildTime, const TCHAR* MeshPath);
     void BuildTestArena();
 };

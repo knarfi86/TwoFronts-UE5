@@ -1,3 +1,3 @@
 #include "TFPlayerState.h"
 #include "Net/UnrealNetwork.h"
-void ATFPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const { Super::GetLifetimeReplicatedProps(Out); DOREPLIFETIME(ATFPlayerState, ChosenFaction); }
+void ATFPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const { Super::GetLifetimeReplicatedProps(OutLifetimeProps); DOREPLIFETIME(ATFPlayerState, ChosenFaction); }
