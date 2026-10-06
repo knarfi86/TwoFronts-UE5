@@ -20,18 +20,24 @@ public:
     void Initialise(const FVector& MuzzleLocation, const FVector& ImpactLocation, const FTFDirectShotVFXSettings& Settings);
 
 private:
-    void DrawFallbackBeam(float WidthScale = 1.f) const;
+    void DrawFallbackBolt() const;
     void DrawFallbackMuzzle() const;
     void DrawFallbackImpact() const;
-    void PulseFallbackBeam();
-    bool SpawnNiagaraSystem(UNiagaraSystem* System, const FVector& Location, const FRotator& Rotation, bool bConfigureBeam);
+    void AdvanceFallbackBolt();
+    void PlayImpact();
+    void DisableMuzzleLight();
+    bool SpawnNiagaraSystem(UNiagaraSystem* System, const FVector& Location, const FRotator& Rotation, float Intensity, bool bConfigureBolt);
 
     UPROPERTY(VisibleAnywhere, Category="Laser VFX") TObjectPtr<USceneComponent> Root;
     UPROPERTY(VisibleAnywhere, Category="Laser VFX") TObjectPtr<UPointLightComponent> MuzzleLight;
     UPROPERTY(VisibleAnywhere, Category="Laser VFX") TObjectPtr<UPointLightComponent> ImpactLight;
     FTFDirectShotVFXSettings VFXSettings;
-    FVector BeamStart = FVector::ZeroVector;
-    FVector BeamEnd = FVector::ZeroVector;
-    FTimerHandle FallbackPulseTimer;
-    int32 PulseCount = 0;
+    FVector BoltStart = FVector::ZeroVector;
+    FVector BoltEnd = FVector::ZeroVector;
+    FVector BoltDirection = FVector::ForwardVector;
+    float BoltTravelDuration = .01f;
+    float BoltSpawnTime = 0.f;
+    FTimerHandle BoltStepTimer;
+    FTimerHandle ImpactTimer;
+    FTimerHandle MuzzleLightTimer;
 };

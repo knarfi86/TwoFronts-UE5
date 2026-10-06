@@ -38,7 +38,7 @@ Einheiten, Fabriken, Fraktionen, Produktion und Trefferpunkte replizieren. Der C
 |---|---|---|---|
 | Bewegung und Navigation | Bewegungsbefehl im Controller | `AAIController::MoveToLocation`, `UNavigationSystemV1`, Laufzeit-NavMesh | Beibehalten; die eigene Formation berechnet nur Zielslots. |
 | Direktschuss | serverseitige Zielprüfung | zentraler Schaden, visuelle Debug-Linie | Beibehalten; Gameplay-Regeln bleiben vom Effekt getrennt. |
-| Laser VFX (V0.3.2) | `UTFCombatComponent` nach `FTFDamageSystem::ApplyDamage` | `ATFLaserVFX`, optionale Niagara-Systeme, kurzlebige Point Lights | Reine Multicast-Präsentation; Beam/Muzzle/Impact beeinflussen weder Treffer noch Schaden. |
+| Blaster-Bolt-VFX (V0.3.2) | `UTFCombatComponent` nach `FTFDamageSystem::ApplyDamage` | `ATFLaserVFX`, optionale Niagara-Systeme, Timer-Schritte und kurzlebige Point Lights | Reine Multicast-Präsentation; ein kurzer bewegter Bolt, Muzzle und Impact beeinflussen weder Treffer noch Schaden. |
 | Kanonen-/Walker-Geschoss | eigener Actor-Tick | `UProjectileMovementComponent`, Homing und Kollisions-Overlap | Migriert; die Engine bewegt das Geschoss, der Server bewertet den Treffer. |
 | Schaden und Friendly Fire | `FTFDamageSystem` + `UTFHealthComponent` | UE-Actor-/Komponenten- und Replikationsgrenzen | Beibehalten; räumliche Abfragen dürfen Regeln nur auslösen, nie umgehen. |
 | UI und Eingabe | `UUserWidget`, Controller-RPCs | UMG/Slate und Unreal Input | Beibehalten; keine Spielregeln im Widget. |
@@ -51,5 +51,5 @@ MassEntity, Niagara, Chaos, `SuggestProjectileVelocity`/`PredictProjectilePath` 
 - Die Arena entsteht zur Laufzeit auf `/Engine/Maps/Entry`; sie ist kein gespeichertes `.umap`.
 - Die Canvas-Oberfläche ist funktional, aber keine finale UMG-Ansicht.
 - Direktschüsse nutzen zentralen Direktschaden; Kanonen-/Walker-Schüsse sind sichtbare homingfähige Projektile. Es gibt noch keine Deckung oder Explosionen.
-- Laser-Niagara-Assets sind optional, bis kuratierter Content vorhanden ist. Ohne sie zeichnet der native Fallback farbige Beam-/Flash-Geometrie und High aktiviert nur für die Effektlebensdauer begrenzte Lichter.
+- Blaster-Niagara-Assets sind optional, bis kuratierter Content vorhanden ist. Ohne sie zeichnet der native Fallback ausschließlich kurze bewegte Bolt-/Flash-Segmente; High aktiviert nur für die Effektlebensdauer begrenzte Lichter.
 - Das automatische Feuer sucht bewusst nur einfache Ziele im Sichtbereich; es ist keine Strategie-KI.

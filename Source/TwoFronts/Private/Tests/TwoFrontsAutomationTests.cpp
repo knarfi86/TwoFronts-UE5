@@ -112,12 +112,14 @@ bool FTFCombatDataTest::RunTest(const FString&)
     TestTrue(TEXT("Tank uses a projectile weapon definition"), Humans->Units[2]->Weapons.Num() == 1 && Humans->Units[2]->Weapons[0]->Delivery == ETFWeaponDelivery::Projectile);
     TestTrue(TEXT("Walker also uses a projectile weapon definition"), Synth->Units[2]->Weapons.Num() == 1 && Synth->Units[2]->Weapons[0]->Delivery == ETFWeaponDelivery::Projectile);
     TestTrue(TEXT("Weapons declare valid target categories"), Humans->Units[1]->Weapons[0]->ValidTargetCategories.Contains(ETFCombatTargetCategory::Armored));
-    const FTFDirectShotVFXSettings& HumanLaserVFX = Humans->Units[1]->Weapons[0]->DirectShotVFX;
-    const FTFDirectShotVFXSettings& SynthLaserVFX = Synth->Units[1]->Weapons[0]->DirectShotVFX;
-    TestTrue(TEXT("Human laser uses a warm red-dominant primary color"), HumanLaserVFX.PrimaryColor.R > HumanLaserVFX.PrimaryColor.G && HumanLaserVFX.PrimaryColor.G > HumanLaserVFX.PrimaryColor.B);
-    TestTrue(TEXT("Synth laser uses a cyan blue-dominant primary color"), SynthLaserVFX.PrimaryColor.B > SynthLaserVFX.PrimaryColor.G && SynthLaserVFX.PrimaryColor.G > SynthLaserVFX.PrimaryColor.R);
-    TestTrue(TEXT("Direct-shot VFX lifetime and widths are valid"), HumanLaserVFX.BeamLifetime > 0.f && HumanLaserVFX.GlowWidth >= HumanLaserVFX.BeamWidth);
-    TestEqual(TEXT("Runtime laser VFX uses the high-quality profile"), HumanLaserVFX.VFXQuality, ETFLaserVFXQuality::High);
+    const FTFDirectShotVFXSettings& HumanBoltVFX = Humans->Units[1]->Weapons[0]->DirectShotVFX;
+    const FTFDirectShotVFXSettings& SynthBoltVFX = Synth->Units[1]->Weapons[0]->DirectShotVFX;
+    TestTrue(TEXT("Human bolt uses a warm orange color"), HumanBoltVFX.BoltColor.R > HumanBoltVFX.BoltColor.G && HumanBoltVFX.BoltColor.G > HumanBoltVFX.BoltColor.B);
+    TestTrue(TEXT("Synth bolt uses a green color instead of cyan"), SynthBoltVFX.BoltColor.G > SynthBoltVFX.BoltColor.R && SynthBoltVFX.BoltColor.G > SynthBoltVFX.BoltColor.B);
+    TestTrue(TEXT("Direct-shot bolt lengths remain compact"), HumanBoltVFX.BoltLength >= 80.f && HumanBoltVFX.BoltLength <= 250.f && SynthBoltVFX.BoltLength >= 80.f && SynthBoltVFX.BoltLength <= 250.f);
+    TestTrue(TEXT("Direct-shot bolt speeds use the blaster range"), HumanBoltVFX.BoltSpeed >= 15000.f && HumanBoltVFX.BoltSpeed <= 40000.f && SynthBoltVFX.BoltSpeed >= 15000.f && SynthBoltVFX.BoltSpeed <= 40000.f);
+    TestTrue(TEXT("Direct-shot bolts stay shorter than their firing ranges"), HumanBoltVFX.BoltLength < Humans->Units[1]->Weapons[0]->MaximumRange * .5f && SynthBoltVFX.BoltLength < Synth->Units[1]->Weapons[0]->MaximumRange * .5f);
+    TestEqual(TEXT("Runtime blaster VFX uses the high-quality profile"), HumanBoltVFX.VFXQuality, ETFLaserVFXQuality::High);
     return true;
 }
 #endif
