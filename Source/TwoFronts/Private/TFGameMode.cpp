@@ -117,13 +117,21 @@ void ATFGameMode::BuildTestArena()
     };
     MakeFactory(Humans, HumanLocation, TEXT("Human Factory"), TEXT("/Engine/BasicShapes/Cube.Cube"));
     MakeFactory(Synth, SynthLocation, TEXT("Synth Factory"), TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
-    auto SpawnInitial = [this](UTFFactionDefinition* Definition, const FVector& Base, float Direction)
+    int32 SpawnedUnitCount = 0;
+    auto SpawnInitial = [this, &SpawnedUnitCount](UTFFactionDefinition* Definition, const FVector& Base, float Direction)
     {
-        for (int32 Index = 0; Index < Definition->Units.Num(); ++Index)
+        constexpr int32 UnitsPerSpawnRow = 5;
+        for (int32 TypeIndex = 0; TypeIndex < Definition->Units.Num(); ++TypeIndex)
         {
-            ATFUnit* Unit = GetWorld()->SpawnActor<ATFUnit>(Base + FVector(Direction * (900 + Index * 180), (Index - 1.5f) * 300, 120), FRotator::ZeroRotator);
-            Unit->ApplyDefinition(Definition->Units[Index]);
+            for (int32 UnitIndex = 0; UnitIndex < InitialUnitsPerCategory; ++UnitIndex)
+            {
+                const int32 SpawnRow = UnitIndex / UnitsPerSpawnRow;
+                const int32 SpawnColumn = UnitIndex % UnitsPerSpawnRow;
+                const FVector SpawnLocation = Base + FVector(Direction * (1050.f + SpawnRow * 420.f), (TypeIndex - (Definition->Units.Num() - 1) * .5f) * 1250.f + (SpawnColumn - (UnitsPerSpawnRow - 1) * .5f) * 230.f, 120.f);
+                if (ATFUnit* Unit = GetWorld()->SpawnActor<ATFUnit>(SpawnLocation, FRotator::ZeroRotator)) { Unit->ApplyDefinition(Definition->Units[TypeIndex]); ++SpawnedUnitCount; }
+            }
         }
     };
     SpawnInitial(Humans, HumanLocation, 1.f); SpawnInitial(Synth, SynthLocation, -1.f);
+    UE_LOG(LogTemp, Display, TEXT("Two Fronts test arena spawned %d mobile units (%d per category and faction)."), SpawnedUnitCount, InitialUnitsPerCategory);
 }

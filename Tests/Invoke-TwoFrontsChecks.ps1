@@ -10,6 +10,8 @@ $RequiredSources = @(
     'TwoFronts.uproject',
     'Source/TwoFronts/TwoFronts.Build.cs',
     'Source/TwoFronts/Public/TFUnit.h',
+    'Source/TwoFronts/Public/TFFormationPlanner.h',
+    'Source/TwoFronts/Private/TFFormationPlanner.cpp',
     'Source/TwoFronts/Public/TFFactory.h',
     'Source/TwoFronts/Private/TFPlayerController.cpp',
     'Source/TwoFronts/Private/Tests/TwoFrontsAutomationTests.cpp'
@@ -27,6 +29,8 @@ foreach ($UnitId in 'HumanScout','HumanRifleUnit','HumanBattleTank','HumanRepair
 foreach ($RequiredRPC in 'ServerMoveUnits','ServerAttackUnits','ServerRepairUnits','ServerEnqueueFactory') {
     if ($UnitSource + (Get-Content -Raw (Join-Path $ProjectRoot 'Source/TwoFronts/Private/TFPlayerController.cpp')) -notmatch $RequiredRPC) { throw "Server-Befehlsnaht fehlt: $RequiredRPC" }
 }
+if ($UnitSource -notmatch 'InitialUnitsPerCategory') { throw 'Konfigurierbare Testarmee fehlt.' }
+if ((Get-Content -Raw (Join-Path $ProjectRoot 'Source/TwoFronts/Private/Tests/TwoFrontsAutomationTests.cpp')) -notmatch 'FormationPlanner') { throw 'Formations-Automationstest fehlt.' }
 Write-Host 'STATIC CHECK PASSED: Source structure and all eight gameplay definitions are present.' -ForegroundColor Green
 Write-Host 'This is not a compilation or gameplay result.' -ForegroundColor Yellow
 

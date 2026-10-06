@@ -8,6 +8,9 @@ enum class ETFactionId : uint8 { None, Humans, Synth };
 UENUM(BlueprintType)
 enum class ETUnitRole : uint8 { Scout, Combat, Heavy, Support };
 
+UENUM(BlueprintType)
+enum class ETFFormation : uint8 { Line, Column, Wedge };
+
 USTRUCT(BlueprintType)
 struct FTFCombatStats
 {

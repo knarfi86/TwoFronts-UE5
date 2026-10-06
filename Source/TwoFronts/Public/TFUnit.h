@@ -31,6 +31,7 @@ public:
     UFUNCTION(BlueprintCallable) bool CanRepair(const ATFUnit* Target) const;
     UFUNCTION(BlueprintCallable) void RepairTarget(ATFUnit* Target, float DeltaSeconds);
     UFUNCTION(BlueprintCallable) void SetRepairTarget(ATFUnit* Target);
+    UFUNCTION(BlueprintCallable) void SetFormationFacing(FVector Direction);
 protected:
     float LastAttackTime = -100.f;
     void AutoAttack(float DeltaSeconds);

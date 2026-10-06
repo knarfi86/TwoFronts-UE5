@@ -60,6 +60,15 @@ void ATFUnit::RepairTarget(ATFUnit* Target, float DeltaSeconds)
     if (HasAuthority() && CanRepair(Target)) Target->Health->Repair(Definition->RepairPerSecond * DeltaSeconds);
 }
 void ATFUnit::SetRepairTarget(ATFUnit* Target) { if (HasAuthority() && !Target) { CurrentRepairTarget = nullptr; } else if (HasAuthority() && CanRepair(Target)) { CurrentRepairTarget = Target; CombatTarget = nullptr; } }
+void ATFUnit::SetFormationFacing(FVector Direction)
+{
+    Direction.Z = 0.f;
+    if (HasAuthority() && !Direction.IsNearlyZero())
+    {
+        GetCharacterMovement()->bOrientRotationToMovement = false;
+        SetActorRotation(Direction.Rotation());
+    }
+}
 void ATFUnit::AutoAttack(float DeltaSeconds)
 {
     if (!HasAuthority() || !Definition) return;
