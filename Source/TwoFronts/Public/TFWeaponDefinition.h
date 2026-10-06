@@ -21,4 +21,6 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Damage") float AreaDamageRadius = 0.f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Delivery") ETFWeaponDelivery Delivery = ETFWeaponDelivery::Direct;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Targets") TArray<ETFCombatTargetCategory> ValidTargetCategories;
+    // Read only by the presentation layer after an already-resolved Direct hit.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Presentation") FTFDirectShotVFXSettings DirectShotVFX;
 };

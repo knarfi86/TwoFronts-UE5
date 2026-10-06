@@ -5,8 +5,8 @@
 #include "TFWeaponDefinition.h"
 #include "TFDamageSystem.h"
 #include "TFProjectile.h"
+#include "TFLaserVFX.h"
 #include "EngineUtils.h"
-#include "DrawDebugHelpers.h"
 
 UTFCombatComponent::UTFCombatComponent() { PrimaryComponentTick.bCanEverTick = true; SetIsReplicatedByDefault(true); }
 bool UTFCombatComponent::IsValidTarget(const ATFUnit* OwnerUnit, const ATFUnit* Target) const
@@ -35,7 +35,17 @@ void UTFCombatComponent::FireWeapon(ATFUnit* OwnerUnit, int32 WeaponIndex)
     {
         if (ATFProjectile* Projectile = GetWorld()->SpawnActor<ATFProjectile>(OwnerUnit->GetActorLocation() + FVector(0.f, 0.f, 70.f), FRotator::ZeroRotator)) Projectile->Initialise(Target, Damage, Weapon->ProjectileSpeed);
     }
-    else { DrawDebugLine(GetWorld(), OwnerUnit->GetActorLocation() + FVector(0.f,0.f,70.f), Target->GetActorLocation() + FVector(0.f,0.f,70.f), FColor::Yellow, false, .08f, 0, 2.f); FTFDamageSystem::ApplyDamage(Target, Damage); }
+    else
+    {
+        const FVector MuzzleLocation = OwnerUnit->GetActorLocation() + FVector(0.f, 0.f, 70.f);
+        const FVector ImpactLocation = Target->GetActorLocation() + FVector(0.f, 0.f, 70.f);
+        FTFDamageSystem::ApplyDamage(Target, Damage);
+        MulticastShowDirectShotVFX(MuzzleLocation, ImpactLocation, Weapon->DirectShotVFX);
+    }
+}
+void UTFCombatComponent::MulticastShowDirectShotVFX_Implementation(FVector_NetQuantize10 MuzzleLocation, FVector_NetQuantize10 ImpactLocation, const FTFDirectShotVFXSettings& VFXSettings)
+{
+    ATFLaserVFX::Spawn(GetWorld(), MuzzleLocation, ImpactLocation, VFXSettings);
 }
 void UTFCombatComponent::TickComponent(float DeltaSeconds, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {

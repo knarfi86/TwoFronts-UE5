@@ -62,11 +62,32 @@ void ATFGameMode::CreateRuntimeDefinitions()
     MakeUnit(Synth, TEXT("SynthCombatDrone"), FText::FromString(TEXT("Combat Drone")), ETUnitRole::Combat, 130, 580, 14, 700, .75f, 0, 5.5f, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
     MakeUnit(Synth, TEXT("SynthWalker"), FText::FromString(TEXT("Walker")), ETUnitRole::Heavy, 360, 360, 35, 850, 1.25f, 0, 10, TEXT("/Engine/BasicShapes/Cube.Cube"));
     MakeUnit(Synth, TEXT("SynthReconstructor"), FText::FromString(TEXT("Reconstructor")), ETUnitRole::Support, 160, 450, 0, 0, 1, 35, 7, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
-    Humans->Units[0]->Weapons.Add(MakeWeapon(TEXT("HumanScoutPulse"), FText::FromString(TEXT("Scout Pulse")), 8.f, 450.f, .7f, ETFWeaponDelivery::Direct));
-    Humans->Units[1]->Weapons.Add(MakeWeapon(TEXT("HumanRifle"), FText::FromString(TEXT("Rifle")), 16.f, 650.f, 1.f, ETFWeaponDelivery::Direct));
+    FTFDirectShotVFXSettings HumanLaserVFX;
+    HumanLaserVFX.PrimaryColor = FLinearColor(1.f, .26f, .025f);
+    HumanLaserVFX.CoreColor = FLinearColor(1.f, .94f, .62f);
+    HumanLaserVFX.BeamWidth = 2.4f;
+    HumanLaserVFX.GlowWidth = 10.f;
+    HumanLaserVFX.LightIntensity = 22000.f;
+    FTFDirectShotVFXSettings SynthLaserVFX;
+    SynthLaserVFX.PrimaryColor = FLinearColor(.02f, .82f, 1.f);
+    SynthLaserVFX.CoreColor = FLinearColor(.9f, 1.f, 1.f);
+    SynthLaserVFX.BeamWidth = 2.1f;
+    SynthLaserVFX.GlowWidth = 9.f;
+    SynthLaserVFX.LightIntensity = 18000.f;
+    SynthLaserVFX.VolumetricScatteringIntensity = .15f;
+    UTFWeaponDefinition* HumanScoutPulse = MakeWeapon(TEXT("HumanScoutPulse"), FText::FromString(TEXT("Scout Pulse")), 8.f, 450.f, .7f, ETFWeaponDelivery::Direct);
+    HumanScoutPulse->DirectShotVFX = HumanLaserVFX;
+    Humans->Units[0]->Weapons.Add(HumanScoutPulse);
+    UTFWeaponDefinition* HumanRifle = MakeWeapon(TEXT("HumanRifle"), FText::FromString(TEXT("Rifle")), 16.f, 650.f, 1.f, ETFWeaponDelivery::Direct);
+    HumanRifle->DirectShotVFX = HumanLaserVFX;
+    Humans->Units[1]->Weapons.Add(HumanRifle);
     Humans->Units[2]->Weapons.Add(MakeWeapon(TEXT("HumanTankShell"), FText::FromString(TEXT("Tank Shell")), 42.f, 800.f, 1.6f, ETFWeaponDelivery::Projectile, 1250.f));
-    Synth->Units[0]->Weapons.Add(MakeWeapon(TEXT("SynthProbePulse"), FText::FromString(TEXT("Probe Pulse")), 6.f, 500.f, .55f, ETFWeaponDelivery::Direct));
-    Synth->Units[1]->Weapons.Add(MakeWeapon(TEXT("SynthDroneBeam"), FText::FromString(TEXT("Drone Beam")), 14.f, 700.f, .75f, ETFWeaponDelivery::Direct));
+    UTFWeaponDefinition* SynthProbePulse = MakeWeapon(TEXT("SynthProbePulse"), FText::FromString(TEXT("Probe Pulse")), 6.f, 500.f, .55f, ETFWeaponDelivery::Direct);
+    SynthProbePulse->DirectShotVFX = SynthLaserVFX;
+    Synth->Units[0]->Weapons.Add(SynthProbePulse);
+    UTFWeaponDefinition* SynthDroneBeam = MakeWeapon(TEXT("SynthDroneBeam"), FText::FromString(TEXT("Drone Beam")), 14.f, 700.f, .75f, ETFWeaponDelivery::Direct);
+    SynthDroneBeam->DirectShotVFX = SynthLaserVFX;
+    Synth->Units[1]->Weapons.Add(SynthDroneBeam);
     Synth->Units[2]->Weapons.Add(MakeWeapon(TEXT("SynthWalkerBolt"), FText::FromString(TEXT("Walker Bolt")), 35.f, 850.f, 1.25f, ETFWeaponDelivery::Projectile, 1400.f));
 }
 UTFFactionDefinition* ATFGameMode::GetFactionDefinition(ETFactionId Faction) const { return Faction == ETFactionId::Humans ? Humans : (Faction == ETFactionId::Synth ? Synth : nullptr); }

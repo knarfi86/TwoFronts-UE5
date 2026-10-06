@@ -112,6 +112,12 @@ bool FTFCombatDataTest::RunTest(const FString&)
     TestTrue(TEXT("Tank uses a projectile weapon definition"), Humans->Units[2]->Weapons.Num() == 1 && Humans->Units[2]->Weapons[0]->Delivery == ETFWeaponDelivery::Projectile);
     TestTrue(TEXT("Walker also uses a projectile weapon definition"), Synth->Units[2]->Weapons.Num() == 1 && Synth->Units[2]->Weapons[0]->Delivery == ETFWeaponDelivery::Projectile);
     TestTrue(TEXT("Weapons declare valid target categories"), Humans->Units[1]->Weapons[0]->ValidTargetCategories.Contains(ETFCombatTargetCategory::Armored));
+    const FTFDirectShotVFXSettings& HumanLaserVFX = Humans->Units[1]->Weapons[0]->DirectShotVFX;
+    const FTFDirectShotVFXSettings& SynthLaserVFX = Synth->Units[1]->Weapons[0]->DirectShotVFX;
+    TestTrue(TEXT("Human laser uses a warm red-dominant primary color"), HumanLaserVFX.PrimaryColor.R > HumanLaserVFX.PrimaryColor.G && HumanLaserVFX.PrimaryColor.G > HumanLaserVFX.PrimaryColor.B);
+    TestTrue(TEXT("Synth laser uses a cyan blue-dominant primary color"), SynthLaserVFX.PrimaryColor.B > SynthLaserVFX.PrimaryColor.G && SynthLaserVFX.PrimaryColor.G > SynthLaserVFX.PrimaryColor.R);
+    TestTrue(TEXT("Direct-shot VFX lifetime and widths are valid"), HumanLaserVFX.BeamLifetime > 0.f && HumanLaserVFX.GlowWidth >= HumanLaserVFX.BeamWidth);
+    TestEqual(TEXT("Runtime laser VFX uses the high-quality profile"), HumanLaserVFX.VFXQuality, ETFLaserVFXQuality::High);
     return true;
 }
 #endif
