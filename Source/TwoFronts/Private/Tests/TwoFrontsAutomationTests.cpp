@@ -119,6 +119,10 @@ bool FTFCombatDataTest::RunTest(const FString&)
     TestTrue(TEXT("Direct-shot bolt lengths remain compact"), HumanBoltVFX.BoltLength >= 80.f && HumanBoltVFX.BoltLength <= 250.f && SynthBoltVFX.BoltLength >= 80.f && SynthBoltVFX.BoltLength <= 250.f);
     TestTrue(TEXT("Direct-shot bolt speeds use the blaster range"), HumanBoltVFX.BoltSpeed >= 15000.f && HumanBoltVFX.BoltSpeed <= 40000.f && SynthBoltVFX.BoltSpeed >= 15000.f && SynthBoltVFX.BoltSpeed <= 40000.f);
     TestTrue(TEXT("Direct-shot bolts stay shorter than their firing ranges"), HumanBoltVFX.BoltLength < Humans->Units[1]->Weapons[0]->MaximumRange * .5f && SynthBoltVFX.BoltLength < Synth->Units[1]->Weapons[0]->MaximumRange * .5f);
+    TestEqual(TEXT("Human rifle uses the increased range"), Humans->Units[1]->Weapons[0]->MaximumRange, 900.f);
+    TestEqual(TEXT("Synth drone uses the increased range"), Synth->Units[1]->Weapons[0]->MaximumRange, 950.f);
+    TestEqual(TEXT("Human bolt speed is slightly reduced"), HumanBoltVFX.BoltSpeed, 24000.f);
+    TestEqual(TEXT("Synth bolt speed is slightly reduced"), SynthBoltVFX.BoltSpeed, 29000.f);
     TestEqual(TEXT("Runtime blaster VFX uses the high-quality profile"), HumanBoltVFX.VFXQuality, ETFLaserVFXQuality::High);
     return true;
 }
