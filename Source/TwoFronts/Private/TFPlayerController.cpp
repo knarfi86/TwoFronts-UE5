@@ -13,6 +13,7 @@
 #include "TFFormationWidget.h"
 #include "TFFormationPlanner.h"
 #include "TFGameMode.h"
+#include "TFRTSCameraPawn.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogTwoFrontsRTS, Log, All);
 
@@ -52,6 +53,14 @@ void ATFPlayerController::PlayerTick(float DeltaTime)
     Super::PlayerTick(DeltaTime);
     SelectedUnits.RemoveAll([](const TObjectPtr<ATFUnit>& Unit) { return !IsValid(Unit); });
     if (!IsValid(SelectedFactory)) SelectedFactory = nullptr;
+
+    // A short right click remains the RTS command. Holding it without drawing a formation
+    // switches to mouse-look, so the map can be inspected freely without sacrificing orders.
+    if (bRightMouseDown && !bFreeLookActive && !bLineCommandActive && GetWorld() && GetWorld()->GetTimeSeconds() - RightMousePressedTime >= .15f)
+    {
+        BeginFreeLook();
+    }
+
     if (!bCommandHeld || SelectedUnits.IsEmpty()) return;
 
     FVector2D CurrentMouse;
@@ -71,8 +80,50 @@ ETFactionId ATFPlayerController::GetPlayerFaction() const
     if (!HasAuthority()) return RequestedFaction;
     return GetPlayerState<ATFPlayerState>() ? GetPlayerState<ATFPlayerState>()->ChosenFaction : RequestedFaction;
 }
-void ATFPlayerController::ChooseHumans() { RequestedFaction = ETFactionId::Humans; ServerSetFaction(RequestedFaction); ClearSelection(); }
-void ATFPlayerController::ChooseSynth() { RequestedFaction = ETFactionId::Synth; ServerSetFaction(RequestedFaction); ClearSelection(); }
+void ATFPlayerController::ChooseHumans() { ChooseFaction(ETFactionId::Humans); }
+void ATFPlayerController::ChooseSynth() { ChooseFaction(ETFactionId::Synth); }
+void ATFPlayerController::ChooseFaction(ETFactionId Faction)
+{
+    const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+    const bool bFocusFactory = Faction == LastFactionShortcut && Now - LastFactionShortcutTime <= .4f;
+    LastFactionShortcut = Faction;
+    LastFactionShortcutTime = Now;
+    RequestedFaction = Faction;
+    ServerSetFaction(RequestedFaction);
+    ClearSelection();
+    if (bFocusFactory)
+    {
+        FocusCameraOnFactionFactory(Faction);
+    }
+}
+void ATFPlayerController::FocusCameraOnFactionFactory(ETFactionId Faction)
+{
+    if (!IsLocalController())
+    {
+        return;
+    }
+
+    for (TActorIterator<ATFFactory> It(GetWorld()); It; ++It)
+    {
+        ATFFactory* Factory = *It;
+        if (!IsValid(Factory) || Factory->Faction != Faction)
+        {
+            continue;
+        }
+
+        if (ATFRTSCameraPawn* CameraPawn = Cast<ATFRTSCameraPawn>(GetPawn()))
+        {
+            FVector CameraLocation = Factory->GetActorLocation();
+            CameraLocation.Z += 2200.f;
+            CameraPawn->SetActorLocation(CameraLocation, false, nullptr, ETeleportType::TeleportPhysics);
+            SetControlRotation(FRotator(-60.f, GetControlRotation().Yaw, 0.f));
+            UE_LOG(LogTwoFrontsRTS, Log, TEXT("RTS camera centered on %s factory at %s."), *UEnum::GetValueAsString(Faction), *Factory->GetActorLocation().ToCompactString());
+        }
+        return;
+    }
+
+    UE_LOG(LogTwoFrontsRTS, Warning, TEXT("RTS camera could not find the requested %s factory yet."), *UEnum::GetValueAsString(Faction));
+}
 void ATFPlayerController::ServerSetFaction_Implementation(ETFactionId NewFaction) { if (ATFPlayerState* State = GetPlayerState<ATFPlayerState>()) State->ChosenFaction = (NewFaction == ETFactionId::Synth ? ETFactionId::Synth : ETFactionId::Humans); }
 bool ATFPlayerController::GetWorldHit(FHitResult& OutHit) const { return GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_Visibility), false, OutHit); }
 void ATFPlayerController::BeginSelection() { GetMousePosition(SelectionStart.X, SelectionStart.Y); bSelectionInProgress = true; }
@@ -153,10 +204,12 @@ void ATFPlayerController::EndSelection()
 }
 void ATFPlayerController::BeginCommand()
 {
-    if (SelectedUnits.IsEmpty()) return;
-    if (!GetWorldHit(CommandStartHit))
+    bRightMouseDown = true;
+    bFreeLookActive = false;
+    RightMousePressedTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+
+    if (SelectedUnits.IsEmpty() || !GetWorldHit(CommandStartHit))
     {
-        UE_LOG(LogTwoFrontsRTS, Warning, TEXT("RTS move command rejected because the cursor did not hit a blocking world surface."));
         return;
     }
     GetMousePosition(CommandStartScreen.X, CommandStartScreen.Y);
@@ -168,6 +221,13 @@ void ATFPlayerController::BeginCommand()
 }
 void ATFPlayerController::EndCommand()
 {
+    if (!bRightMouseDown) return;
+    bRightMouseDown = false;
+    if (bFreeLookActive)
+    {
+        EndFreeLook();
+        return;
+    }
     if (!bCommandHeld) return;
     bCommandHeld = false;
     if (bLineCommandActive)
@@ -183,9 +243,50 @@ void ATFPlayerController::EndCommand()
 }
 void ATFPlayerController::CancelCommand()
 {
+    bRightMouseDown = false;
+    EndFreeLook();
     bCommandHeld = false;
     bLineCommandActive = false;
     PreviewTargets.Empty();
+}
+void ATFPlayerController::BeginFreeLook()
+{
+    if (!IsLocalController() || bFreeLookActive)
+    {
+        return;
+    }
+
+    bFreeLookActive = true;
+    bCommandHeld = false;
+    bLineCommandActive = false;
+    PreviewTargets.Empty();
+    if (ATFRTSCameraPawn* CameraPawn = Cast<ATFRTSCameraPawn>(GetPawn()))
+    {
+        CameraPawn->SetFreeLookActive(true);
+    }
+    bShowMouseCursor = false;
+    FInputModeGameOnly InputMode;
+    SetInputMode(InputMode);
+}
+void ATFPlayerController::EndFreeLook()
+{
+    if (!bFreeLookActive)
+    {
+        return;
+    }
+
+    bFreeLookActive = false;
+    if (ATFRTSCameraPawn* CameraPawn = Cast<ATFRTSCameraPawn>(GetPawn()))
+    {
+        CameraPawn->SetFreeLookActive(false);
+    }
+    if (IsLocalController())
+    {
+        bShowMouseCursor = true;
+        FInputModeGameAndUI InputMode;
+        InputMode.SetHideCursorDuringCapture(false);
+        SetInputMode(InputMode);
+    }
 }
 void ATFPlayerController::IssueShortCommand(const FHitResult& Hit)
 {

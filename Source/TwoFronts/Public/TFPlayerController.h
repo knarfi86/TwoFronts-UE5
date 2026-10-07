@@ -47,6 +47,9 @@ private:
     bool bSelectionInProgress = false;
     bool bCommandHeld = false;
     bool bLineCommandActive = false;
+    bool bRightMouseDown = false;
+    bool bFreeLookActive = false;
+    float RightMousePressedTime = 0.f;
     FVector2D CommandStartScreen;
     FVector CommandStartLocation = FVector::ZeroVector;
     FVector CommandCurrentLocation = FVector::ZeroVector;
@@ -56,10 +59,13 @@ private:
     int32 CurrentFormationRows = 0;
     TObjectPtr<UTFUnitDefinition> LastClickedUnitDefinition;
     float LastUnitClickTime = -100.f;
+    ETFactionId LastFactionShortcut = ETFactionId::None;
+    float LastFactionShortcutTime = -100.f;
     UPROPERTY() TObjectPtr<UTFFormationWidget> FormationWidget;
     void BeginSelection(); void EndSelection();
     void BeginCommand(); void EndCommand(); void CancelCommand();
-    void ChooseHumans(); void ChooseSynth();
+    void BeginFreeLook(); void EndFreeLook();
+    void ChooseHumans(); void ChooseSynth(); void ChooseFaction(ETFactionId Faction); void FocusCameraOnFactionFactory(ETFactionId Faction);
     void SelectActor(AActor* Actor, bool bAppend); void ClearSelection();
     void SelectUnitsOfDefinition(const UTFUnitDefinition* UnitDefinition);
     void IssueShortCommand(const FHitResult& Hit);

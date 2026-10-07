@@ -16,6 +16,9 @@ $RequiredSources = @(
     'Source/TwoFronts/Private/TFFormationPlanner.cpp',
     'Source/TwoFronts/Public/TFFactory.h',
     'Source/TwoFronts/Private/TFPlayerController.cpp',
+    'Source/TwoFronts/Public/TFRTSCameraPawn.h',
+    'Source/TwoFronts/Private/TFRTSCameraPawn.cpp',
+    'Content/TwoFronts/Maps/TF_BridgeTest_V04.umap',
     'Source/TwoFronts/Private/Tests/TwoFrontsAutomationTests.cpp'
 )
 
@@ -32,6 +35,14 @@ foreach ($RequiredRPC in 'ServerMoveUnits','ServerAttackUnits','ServerRepairUnit
     if ($UnitSource + (Get-Content -Raw (Join-Path $ProjectRoot 'Source/TwoFronts/Private/TFPlayerController.cpp')) -notmatch $RequiredRPC) { throw "Server-Befehlsnaht fehlt: $RequiredRPC" }
 }
 if ($UnitSource -notmatch 'InitialUnitsPerCategory') { throw 'Konfigurierbare Testarmee fehlt.' }
+if ($UnitSource -notmatch 'BuildAuthoredMapForces') { throw 'Startarmeen fuer autorisierte Karten fehlen.' }
+if ($UnitSource -notmatch 'SpawnCombatDemoUnitOnSurface') { throw 'Kampftest wird auf der neuen Karte nicht auf die Oberflaeche projiziert.' }
+$CameraSource = Get-Content -Raw (Join-Path $ProjectRoot 'Source/TwoFronts/Private/TFRTSCameraPawn.cpp')
+if ($CameraSource -notmatch 'LookYaw' -or (Get-Content -Raw (Join-Path $ProjectRoot 'Source/TwoFronts/Public/TFRTSCameraPawn.h')) -notmatch 'SetFreeLookActive') { throw 'Freie Rechtsklick-Kamera fehlt.' }
+$ControllerSource = Get-Content -Raw (Join-Path $ProjectRoot 'Source/TwoFronts/Private/TFPlayerController.cpp')
+if ($ControllerSource -notmatch 'FocusCameraOnFactionFactory' -or $ControllerSource -notmatch 'LastFactionShortcutTime') { throw 'Fabrikzentrierung per Doppeldruck fehlt.' }
+$InputSource = Get-Content -Raw (Join-Path $ProjectRoot 'Config/DefaultInput.ini')
+if ($InputSource -notmatch 'RTS_LookYaw' -or $InputSource -notmatch 'RTS_LookPitch') { throw 'Mausachsen fuer freie Kamera fehlen.' }
 if ((Get-Content -Raw (Join-Path $ProjectRoot 'Source/TwoFronts/Private/Tests/TwoFrontsAutomationTests.cpp')) -notmatch 'FormationPlanner') { throw 'Formations-Automationstest fehlt.' }
 Write-Host 'STATIC CHECK PASSED: Source structure and all eight gameplay definitions are present.' -ForegroundColor Green
 Write-Host 'This is not a compilation or gameplay result.' -ForegroundColor Yellow

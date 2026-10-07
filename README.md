@@ -7,7 +7,7 @@ Eigenständiger Unreal-Engine-5-Prototyp eines Echtzeitstrategiespiels. Menschen
 - Datengetriebene `UPrimaryDataAsset`-Klassen für Fraktionen und Einheiten; die V0.1-Kataloge werden zur Laufzeit erzeugt, bis kuratierte Content-Assets geliefert werden.
 - Humans und Synth, mit je Scout/Probe, Rifle Unit/Combat Drone, Battle Tank/Walker und Repair Rig/Reconstructor.
 - Zwei fraktionseigene Fabriken mit vier Optionen, kostenloser FIFO-Produktionswarteschlange, Bauzeit, Spawnpunkt und Trefferpunkten.
-- RTS-Kamera: WASD, Mausrad-Zoom (900–4500), Q/E drehen. Auswahl per Klick oder Rahmen, Rechtsklick für Bewegung, Angriff und Reparatur.
+- RTS-Kamera: WASD, Mausrad-Zoom (900–4500), Q/E drehen. Rechte Maustaste halten aktiviert freien Mausblick; ein kurzer Rechtsklick bleibt der Befehl für Bewegung, Angriff und Reparatur.
 - Server-RPC-Grenze für alle Spielbefehle. Der Server prüft Fraktion und Zieltyp vor Produktion, Bewegung, Angriff oder Reparatur.
 - Schaden, automatisches Feuer innerhalb der Sichtweite, Cooldowns, Zerstörung und fortlaufende Support-Reparatur.
 - Temporäres, dynamisch erzeugtes Testfeld mit Boden, Laufzeit-Navigation, je einer Fabrik und vier Start-Einheiten pro Seite. Es ist keine finale Karte.
@@ -34,7 +34,7 @@ $ue = 'C:\Program Files\Epic Games\UE_5.X'
 & "$ue\Engine\Binaries\Win64\UnrealEditor.exe" "$(Resolve-Path .\TwoFronts.uproject)"
 ```
 
-Im Editor `Play` drücken. Die Engine-Entry-Map wird von `ATFGameMode` in die temporäre Arena umgewandelt. Die eigene Fraktion ist zunächst Humans; `[2]` wählt Synth. Linksklick wählt, Ziehen bildet einen Auswahlrahmen und Rechtsklick bewegt/greift/repariert. Eigene Fabrik anklicken und einen der vier unteren Produktionsbuttons anklicken.
+Im Editor `Play` drücken. Standardmäßig lädt `TF_BridgeTest_V04`: Sie behält ihr Level-Layout, erhält zur Laufzeit Navigation, zwei Startarmeen und je eine Fabrik an gegenüberliegenden Kartenbereichen. Die eigene Fraktion ist zunächst Humans; `[2]` wählt Synth. Linksklick wählt, Ziehen bildet einen Auswahlrahmen und ein kurzer Rechtsklick bewegt/greift/repariert. Rechte Maustaste halten aktiviert Mausblick; WASD verschiebt die Kamera. `[1]` oder `[2]` zweimal schnell drücken zentriert die Kamera auf die Humans- beziehungsweise Synth-Fabrik. Mit `KAMPFTEST V0.3 starten` links wird ein 10-gegen-10-Test auf der begehbaren Kartenoberfläche erzeugt.
 
 ## Prüfung
 

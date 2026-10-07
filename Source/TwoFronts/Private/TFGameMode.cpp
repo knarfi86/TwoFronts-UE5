@@ -17,6 +17,7 @@
 #include "Engine/DirectionalLight.h"
 #include "Engine/SkyLight.h"
 #include "Engine/TextureCube.h"
+#include "EngineUtils.h"
 #include "NavigationSystem.h"
 #include "NavMesh/NavMeshBoundsVolume.h"
 #include "Misc/CommandLine.h"
@@ -112,21 +113,333 @@ void ATFGameMode::CreateRuntimeDefinitions()
     Synth->Units[2]->Weapons.Add(MakeWeapon(TEXT("SynthWalkerBolt"), FText::FromString(TEXT("Walker Bolt")), 35.f, 1100.f, 1.25f, ETFWeaponDelivery::Projectile, 1400.f));
 }
 UTFFactionDefinition* ATFGameMode::GetFactionDefinition(ETFactionId Faction) const { return Faction == ETFactionId::Humans ? Humans : (Faction == ETFactionId::Synth ? Synth : nullptr); }
-void ATFGameMode::BeginPlay() { Super::BeginPlay(); CreateRuntimeDefinitions(); if (HasAuthority()) { BuildTestArena(); if (FParse::Param(FCommandLine::Get(), TEXT("CombatDemoTest"))) StartCombatDemo(); } }
+void ATFGameMode::BeginPlay()
+{
+    Super::BeginPlay();
+    CreateRuntimeDefinitions();
+
+    if (!HasAuthority())
+    {
+        return;
+    }
+
+    FString MapName = GetWorld()->GetMapName();
+    MapName.RemoveFromStart(GetWorld()->StreamingLevelsPrefix);
+
+    // The runtime arena belongs only to the original sandbox map.
+    // Real maps such as TF_BridgeTest_V04 keep their authored landscape, lighting and geometry.
+    if (MapName.Equals(TEXT("Entry"), ESearchCase::IgnoreCase))
+    {
+        BuildTestArena();
+    }
+    else
+    {
+        UE_LOG(LogTemp, Display, TEXT("Two Fronts: authored map '%s' detected; runtime test arena skipped."), *MapName);
+        BuildAuthoredMapNavigation();
+        BuildAuthoredMapForces();
+    }
+
+    if (FParse::Param(FCommandLine::Get(), TEXT("CombatDemoTest")))
+    {
+        StartCombatDemo();
+    }
+}
 void ATFGameMode::Tick(float DeltaSeconds) { Super::Tick(DeltaSeconds); if (HasAuthority()) UpdateCombatDemo(); }
 void ATFGameMode::PostLogin(APlayerController* NewPlayer)
 {
     Super::PostLogin(NewPlayer);
-    const FRotator InitialCameraRotation(0.f, -90.f, 0.f);
-    if (ATFRTSCameraPawn* CameraPawn = Cast<ATFRTSCameraPawn>(NewPlayer ? NewPlayer->GetPawn() : nullptr))
-    {
-        CameraPawn->SetActorRotation(InitialCameraRotation);
-    }
+    const FRotator InitialCameraRotation(-60.f, -90.f, 0.f);
     if (NewPlayer && !NewPlayer->GetPawn())
     {
-        if (APawn* CameraPawn = GetWorld()->SpawnActor<APawn>(DefaultPawnClass, FVector(0, 0, 2200), InitialCameraRotation)) NewPlayer->Possess(CameraPawn);
+        if (APawn* CameraPawn = GetWorld()->SpawnActor<APawn>(DefaultPawnClass, FVector(0, 0, 2200), FRotator(0.f, InitialCameraRotation.Yaw, 0.f))) NewPlayer->Possess(CameraPawn);
+    }
+    if (NewPlayer)
+    {
+        NewPlayer->SetControlRotation(InitialCameraRotation);
+        if (ATFRTSCameraPawn* CameraPawn = Cast<ATFRTSCameraPawn>(NewPlayer->GetPawn()))
+        {
+            CameraPawn->SetActorRotation(FRotator(0.f, InitialCameraRotation.Yaw, 0.f));
+        }
     }
 }
+bool ATFGameMode::GetAuthoredLandscapeBounds(FBox& OutBounds, int32& OutLandscapeActorCount) const
+{
+    OutBounds = FBox(ForceInit);
+    OutLandscapeActorCount = 0;
+
+    if (!GetWorld())
+    {
+        return false;
+    }
+
+    // Avoid a hard dependency on the Landscape module: the map already loads these actors,
+    // and their native class names are stable for Landscape and LandscapeStreamingProxy.
+    for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+    {
+        AActor* Actor = *It;
+        if (!IsValid(Actor))
+        {
+            continue;
+        }
+
+        const FString ClassName = Actor->GetClass()->GetName();
+        const bool bIsLandscape =
+            ClassName.Equals(TEXT("Landscape"), ESearchCase::IgnoreCase) ||
+            ClassName.Contains(TEXT("LandscapeStreamingProxy"), ESearchCase::IgnoreCase);
+
+        if (!bIsLandscape)
+        {
+            continue;
+        }
+
+        const FBox ActorBounds = Actor->GetComponentsBoundingBox(true);
+        if (ActorBounds.IsValid)
+        {
+            OutBounds += ActorBounds;
+            ++OutLandscapeActorCount;
+        }
+    }
+
+    return OutBounds.IsValid && OutLandscapeActorCount > 0;
+}
+
+bool ATFGameMode::FindNavigableAuthoredMapPoint(const FVector& Candidate, FVector& OutLocation, float SearchXY) const
+{
+    if (!GetWorld())
+    {
+        return false;
+    }
+
+    if (UNavigationSystemV1* Nav = UNavigationSystemV1::GetCurrent(GetWorld()))
+    {
+        FNavLocation ProjectedLocation;
+        const FVector QueryExtent(
+            FMath::Max(100.f, SearchXY),
+            FMath::Max(100.f, SearchXY),
+            FMath::Max(500.f, AuthoredMapSpawnProjectionExtentZ));
+
+        if (Nav->ProjectPointToNavigation(Candidate, ProjectedLocation, QueryExtent))
+        {
+            OutLocation = ProjectedLocation.Location;
+            return true;
+        }
+    }
+
+    // Fallback for the first runtime frame if Recast has not finished exposing a projection yet.
+    // This still places the force on visible world geometry instead of at an arbitrary fixed Z.
+    FHitResult Hit;
+    const FVector TraceStart(Candidate.X, Candidate.Y, Candidate.Z + AuthoredMapSpawnProjectionExtentZ);
+    const FVector TraceEnd(Candidate.X, Candidate.Y, Candidate.Z - AuthoredMapSpawnProjectionExtentZ);
+    FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(TwoFrontsAuthoredSpawn), false);
+    if (GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, QueryParams))
+    {
+        OutLocation = Hit.Location;
+        return true;
+    }
+
+    return false;
+}
+
+bool ATFGameMode::FindAuthoredMapBasePoint(const FBox& LandscapeBounds, bool bNorthEast, FVector& OutLocation) const
+{
+    const FVector Center = LandscapeBounds.GetCenter();
+    const FVector Extent = LandscapeBounds.GetExtent();
+    const float Sign = bNorthEast ? 1.f : -1.f;
+
+    // Start near the requested corner, then walk progressively toward the map center until
+    // Recast finds a usable point. This avoids hard-coded coordinates and works on later maps too.
+    const float RequestedFraction = FMath::Clamp(AuthoredMapBaseCornerFraction, .20f, .90f);
+    const float Fractions[] =
+    {
+        RequestedFraction,
+        FMath::Max(.20f, RequestedFraction - .10f),
+        FMath::Max(.20f, RequestedFraction - .20f),
+        FMath::Max(.20f, RequestedFraction - .30f),
+        .20f
+    };
+
+    for (const float Fraction : Fractions)
+    {
+        const FVector Candidate(
+            Center.X + Sign * Extent.X * Fraction,
+            Center.Y + Sign * Extent.Y * Fraction,
+            Center.Z);
+
+        if (FindNavigableAuthoredMapPoint(Candidate, OutLocation, AuthoredMapBaseSearchRadiusXY))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void ATFGameMode::BuildAuthoredMapNavigation()
+{
+    if (!bAutoCreateNavigationForAuthoredMaps || !GetWorld())
+    {
+        return;
+    }
+
+    FBox LandscapeBounds(ForceInit);
+    int32 LandscapeActorCount = 0;
+    if (!GetAuthoredLandscapeBounds(LandscapeBounds, LandscapeActorCount))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Two Fronts: no loaded Landscape actors found; automatic authored-map navigation was skipped."));
+        return;
+    }
+
+    const FVector BoundsCenter = LandscapeBounds.GetCenter();
+    FVector BoundsExtent = LandscapeBounds.GetExtent();
+    BoundsExtent.X += AuthoredMapNavigationPaddingXY;
+    BoundsExtent.Y += AuthoredMapNavigationPaddingXY;
+    BoundsExtent.Z += AuthoredMapNavigationPaddingZ;
+    BoundsExtent.Z = FMath::Max(BoundsExtent.Z, AuthoredMapNavigationMinHalfHeight);
+
+    ANavMeshBoundsVolume* NavBounds = GetWorld()->SpawnActor<ANavMeshBoundsVolume>(BoundsCenter, FRotator::ZeroRotator);
+    if (!NavBounds)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Two Fronts: failed to spawn automatic NavMeshBoundsVolume for authored map."));
+        return;
+    }
+
+    NavBounds->Tags.AddUnique(FName(TEXT("TwoFrontsAutoNav")));
+
+    UBoxComponent* NavExtent = NewObject<UBoxComponent>(NavBounds, TEXT("AutoLandscapeNavExtent"));
+    NavBounds->AddInstanceComponent(NavExtent);
+    NavExtent->SetupAttachment(NavBounds->GetRootComponent());
+    NavExtent->SetBoxExtent(BoundsExtent, false);
+    NavExtent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    NavExtent->SetCanEverAffectNavigation(false);
+    NavExtent->RegisterComponent();
+
+    if (UNavigationSystemV1* Nav = UNavigationSystemV1::GetCurrent(GetWorld()))
+    {
+        Nav->OnNavigationBoundsUpdated(NavBounds);
+        Nav->Tick(0.f);
+        Nav->Build();
+
+        const FVector FullSize = BoundsExtent * 2.f;
+        UE_LOG(LogTemp, Display,
+            TEXT("Two Fronts: automatic authored-map navigation created from %d Landscape actor(s). Center=(%.0f, %.0f, %.0f) Size=(%.0f, %.0f, %.0f)."),
+            LandscapeActorCount,
+            BoundsCenter.X, BoundsCenter.Y, BoundsCenter.Z,
+            FullSize.X, FullSize.Y, FullSize.Z);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Two Fronts: no NavigationSystem available; automatic navigation could not be built."));
+    }
+}
+
+void ATFGameMode::BuildAuthoredMapForces()
+{
+    if (!bAutoSpawnForcesOnAuthoredMaps || bAuthoredMapForcesSpawned || !GetWorld() || !Humans || !Synth)
+    {
+        return;
+    }
+
+    FBox LandscapeBounds(ForceInit);
+    int32 LandscapeActorCount = 0;
+    if (!GetAuthoredLandscapeBounds(LandscapeBounds, LandscapeActorCount))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Two Fronts: authored-map forces were not spawned because Landscape bounds are unavailable."));
+        return;
+    }
+
+    FVector HumanBase;
+    FVector SynthBase;
+    if (!FindAuthoredMapBasePoint(LandscapeBounds, false, HumanBase))
+    {
+        UE_LOG(LogTemp, Error, TEXT("Two Fronts: could not find a navigable southwest Humans start point."));
+        return;
+    }
+    if (!FindAuthoredMapBasePoint(LandscapeBounds, true, SynthBase))
+    {
+        UE_LOG(LogTemp, Error, TEXT("Two Fronts: could not find a navigable northeast Synth start point."));
+        return;
+    }
+
+    bAuthoredMapForcesSpawned = true;
+
+    auto SpawnFaction = [this](UTFFactionDefinition* Definition, const FVector& Base, const FVector& EnemyBase, const TCHAR* FactoryLabel, const TCHAR* FactoryMeshPath)
+    {
+        FVector Forward = EnemyBase - Base;
+        Forward.Z = 0.f;
+        Forward = Forward.GetSafeNormal();
+        if (Forward.IsNearlyZero())
+        {
+            Forward = FVector::ForwardVector;
+        }
+        const FVector Right(-Forward.Y, Forward.X, 0.f);
+        const FRotator FacingRotation = Forward.Rotation();
+
+        FVector FactoryLocation = Base;
+        FactoryLocation.Z += 180.f;
+        FActorSpawnParameters FactorySpawnParams;
+        FactorySpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+        if (ATFFactory* Factory = GetWorld()->SpawnActor<ATFFactory>(FactoryLocation, FacingRotation, FactorySpawnParams))
+        {
+            Factory->Faction = Definition->Faction;
+            Factory->DisplayName = FText::FromString(FactoryLabel);
+            Factory->ProductionOptions = Definition->Units;
+            Factory->Visual->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, FactoryMeshPath));
+            Factory->Visual->SetRelativeScale3D(Definition->Faction == ETFactionId::Humans ? FVector(7, 5, 3) : FVector(5, 5, 5));
+            Factory->Tags.AddUnique(FName(TEXT("TwoFrontsAuthoredSpawn")));
+        }
+
+        int32 Spawned = 0;
+        constexpr int32 UnitsPerRow = 5;
+        const float ColumnCenter = (UnitsPerRow - 1) * .5f;
+
+        for (int32 TypeIndex = 0; TypeIndex < Definition->Units.Num(); ++TypeIndex)
+        {
+            for (int32 UnitIndex = 0; UnitIndex < InitialUnitsPerCategory; ++UnitIndex)
+            {
+                const int32 RowWithinType = UnitIndex / UnitsPerRow;
+                const int32 Column = UnitIndex % UnitsPerRow;
+                const int32 GlobalRow = TypeIndex * 2 + RowWithinType;
+
+                const FVector DesiredLocation =
+                    Base +
+                    Forward * (AuthoredMapFactoryToArmyDistance + GlobalRow * AuthoredMapArmyRowSpacing) +
+                    Right * ((Column - ColumnCenter) * AuthoredMapArmyUnitSpacing);
+
+                FVector SpawnSurface;
+                if (!FindNavigableAuthoredMapPoint(DesiredLocation, SpawnSurface, AuthoredMapUnitProjectionRadiusXY))
+                {
+                    UE_LOG(LogTemp, Warning,
+                        TEXT("Two Fronts: no local navigation point for %s unit %d/%d; unit skipped."),
+                        *Definition->DisplayName.ToString(), TypeIndex, UnitIndex);
+                    continue;
+                }
+
+                FVector SpawnLocation = SpawnSurface;
+                SpawnLocation.Z += 120.f;
+                FActorSpawnParameters UnitSpawnParams;
+                UnitSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+                if (ATFUnit* Unit = GetWorld()->SpawnActor<ATFUnit>(SpawnLocation, FacingRotation, UnitSpawnParams))
+                {
+                    Unit->ApplyDefinition(Definition->Units[TypeIndex]);
+                    Unit->Tags.AddUnique(FName(TEXT("TwoFrontsAuthoredSpawn")));
+                    ++Spawned;
+                }
+            }
+        }
+
+        return Spawned;
+    };
+
+    // Requested map orientation: Humans begin in the southwest, Synth in the northeast.
+    const int32 HumanUnits = SpawnFaction(Humans, HumanBase, SynthBase, TEXT("Human Factory"), TEXT("/Engine/BasicShapes/Cube.Cube"));
+    const int32 SynthUnits = SpawnFaction(Synth, SynthBase, HumanBase, TEXT("Synth Factory"), TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+
+    UE_LOG(LogTemp, Display,
+        TEXT("Two Fronts: authored-map forces spawned. Humans SW=(%.0f, %.0f, %.0f) Units=%d | Synth NE=(%.0f, %.0f, %.0f) Units=%d."),
+        HumanBase.X, HumanBase.Y, HumanBase.Z, HumanUnits,
+        SynthBase.X, SynthBase.Y, SynthBase.Z, SynthUnits);
+}
+
 void ATFGameMode::BuildTestArena()
 {
     // A deliberately temporary arena: all geometry and navigation are spawned at runtime, so the project has no final-map dependency.
@@ -210,12 +523,39 @@ void ATFGameMode::StartCombatDemo()
     for (ATFUnit* Unit : CombatDemoHumans) if (IsValid(Unit)) Unit->Destroy();
     for (ATFUnit* Unit : CombatDemoSynth) if (IsValid(Unit)) Unit->Destroy();
     CombatDemoHumans.Empty(); CombatDemoSynth.Empty(); bCombatDemoStarted = false; bCombatDemoFinished = false;
+    FVector CombatDemoOrigin(0.f, 0.f, 120.f);
+    FBox LandscapeBounds(ForceInit);
+    int32 LandscapeActorCount = 0;
+    const bool bIsAuthoredMap = GetAuthoredLandscapeBounds(LandscapeBounds, LandscapeActorCount);
+    if (bIsAuthoredMap)
+    {
+        FVector SurfaceLocation;
+        if (FindNavigableAuthoredMapPoint(LandscapeBounds.GetCenter(), SurfaceLocation, AuthoredMapUnitProjectionRadiusXY))
+        {
+            CombatDemoOrigin = SurfaceLocation + FVector(0.f, 0.f, 120.f);
+        }
+    }
+
+    auto SpawnCombatDemoUnitOnSurface = [this, bIsAuthoredMap, &CombatDemoOrigin](UTFUnitDefinition* Definition, const FVector& Offset)
+    {
+        FVector SpawnLocation = CombatDemoOrigin + Offset;
+        if (bIsAuthoredMap)
+        {
+            FVector SurfaceLocation;
+            if (FindNavigableAuthoredMapPoint(SpawnLocation, SurfaceLocation, 250.f))
+            {
+                SpawnLocation = SurfaceLocation + FVector(0.f, 0.f, 120.f);
+            }
+        }
+        return SpawnCombatDemoUnit(Definition, SpawnLocation);
+    };
+
     for (int32 Index = 0; Index < 10; ++Index)
     {
         const float Y = (Index % 5 - 2) * 180.f;
         const float XOffset = Index < 5 ? 0.f : 80.f;
-        if (ATFUnit* Unit = SpawnCombatDemoUnit(Humans->Units[Index < 5 ? 1 : 2], FVector(-250.f - XOffset, Y, 120.f))) CombatDemoHumans.Add(Unit);
-        if (ATFUnit* Unit = SpawnCombatDemoUnit(Synth->Units[Index < 5 ? 1 : 2], FVector(250.f + XOffset, Y, 120.f))) CombatDemoSynth.Add(Unit);
+        if (ATFUnit* Unit = SpawnCombatDemoUnitOnSurface(Humans->Units[Index < 5 ? 1 : 2], FVector(-250.f - XOffset, Y, 0.f))) CombatDemoHumans.Add(Unit);
+        if (ATFUnit* Unit = SpawnCombatDemoUnitOnSurface(Synth->Units[Index < 5 ? 1 : 2], FVector(250.f + XOffset, Y, 0.f))) CombatDemoSynth.Add(Unit);
     }
     if (FParse::Param(FCommandLine::Get(), TEXT("CombatDemoTest")) && CombatDemoHumans.Num() > 1)
     {
